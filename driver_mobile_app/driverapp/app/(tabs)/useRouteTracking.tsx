@@ -57,11 +57,6 @@ const useRouteTracking = (socket, currentLocation, routeLegsPolylines, cartId, d
   // Check for route deviation
   useEffect(() => {
     if (!currentLocation || !socket || routeWaypoints.length === 0) {
-      console.log('Skipping deviation check - missing required data:', {
-        hasCurrentLocation: !!currentLocation,
-        hasSocket: !!socket,
-        routeWaypointsLength: routeWaypoints.length
-      });
       return;
     }
 

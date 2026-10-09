@@ -122,7 +122,7 @@ const TrackingScreen = () => {
       role: 'driver'
     });
 
-    const newSocket = io('http://172.20.10.5:8000', {
+    const newSocket = io('http://192.168.10.104:8000', {
       query: {
         user_id: driverId,
         cart_id: cartId,
@@ -621,7 +621,7 @@ const handleCompleteTransaction = async () => {
           try {
             setIsCompletingTransaction(true);
             
-            const response = await fetch('http://172.20.10.5:8000/update_route_status', {
+            const response = await fetch('http://192.168.10.104:8000/update_route_status', {
               method: 'POST',
               headers: {
                 'Content-Type': 'application/json',

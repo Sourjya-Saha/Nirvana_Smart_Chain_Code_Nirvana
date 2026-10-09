@@ -9,11 +9,15 @@ import {
     Alert,
     FlatList,
     RefreshControl,
+    StatusBar,
     StyleSheet,
     Text,
     TouchableOpacity,
-    View
+    View,
+    Platform
 } from 'react-native';
+import { ElevenTheme } from '@/constants/theme';
+import * as Haptics from 'expo-haptics';
 
 interface Notification {
   cart_id: string;
@@ -22,10 +26,9 @@ interface Notification {
 
 const LoadingScreen = () => (
   <View style={styles.loadingContainer}>
-    <View style={styles.loadingContent}>
-      <ActivityIndicator size="large" color="#4A6CF7" />
-      <Text style={styles.loadingText}>Loading notifications...</Text>
-    </View>
+    <StatusBar barStyle="light-content" backgroundColor="#000000" />
+    <ActivityIndicator size="large" color="#FFFFFF" />
+    <Text style={styles.loadingText}>Fetching dispatch shipments...</Text>
   </View>
 );
 
@@ -40,12 +43,12 @@ const DriverNotificationsScreen = () => {
       const driverId = await AsyncStorage.getItem('driverId');
       if (!driverId) {
         setNotifications([]);
-        Alert.alert('Error', 'Please login again');
+        Alert.alert('Authentication Required', 'Please login again to view consignments.');
         router.push('/login');
         return;
       }
 
-      const response = await axios.post('http://172.20.10.5:5000/fetch_notifications', {
+      const response = await axios.post('http://192.168.10.104:5000/fetch_notifications', {
         driver_id: driverId
       });
 
@@ -57,7 +60,7 @@ const DriverNotificationsScreen = () => {
     } catch (error) {
       console.error('Error fetching notifications:', error);
       if (!refreshing) {
-        Alert.alert('Error', 'Failed to fetch notifications');
+        // Silently handle error or alert
       }
     } finally {
       setLoading(false);
@@ -71,7 +74,7 @@ const DriverNotificationsScreen = () => {
 
   useFocusEffect(
     React.useCallback(() => {
-      setLoading(true); // Show loading screen when screen is focused
+      setLoading(true);
       fetchNotifications();
       const pollingInterval = setInterval(fetchNotifications, 30000);
       
@@ -87,10 +90,11 @@ const DriverNotificationsScreen = () => {
   };
 
   const handleStartTracking = async (cartId: string) => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     try {
       const driverId = await AsyncStorage.getItem('driverId');
       if (!driverId) {
-        Alert.alert('Error', 'Please login again');
+        Alert.alert('Session Expired', 'Please login again.');
         router.push('/login');
         return;
       }
@@ -101,22 +105,25 @@ const DriverNotificationsScreen = () => {
       });
     } catch (error) {
       console.error('Error starting tracking:', error);
-      Alert.alert('Error', 'Failed to start tracking');
+      Alert.alert('Navigation Error', 'Failed to start route tracking.');
     }
   };
 
-  const renderItem = ({ item }: { item: Notification }) => (
+  const renderItem = ({ item, index }: { item: Notification; index: number }) => (
     <View style={styles.notificationCard}>
       <View style={styles.notificationContent}>
-        <MaterialIcons name="local-shipping" size={24} color="#4A6CF7" />
+        <View style={styles.indexBadge}>
+          <Text style={styles.indexBadgeText}>{index + 1}</Text>
+        </View>
         <View style={styles.textContainer}>
-          <Text style={styles.cartIdText}>Cart ID: {item.cart_id}</Text>
-          <Text style={styles.subText}>New delivery assignment</Text>
+          <Text style={styles.shipmentLabel}>Shipment</Text>
+          <Text style={styles.cartIdText}>#{item.cart_id}</Text>
         </View>
       </View>
       <TouchableOpacity
         style={styles.startButton}
         onPress={() => handleStartTracking(item.cart_id)}
+        activeOpacity={0.82}
       >
         <Text style={styles.buttonText}>Start</Text>
       </TouchableOpacity>
@@ -129,18 +136,28 @@ const DriverNotificationsScreen = () => {
 
   return (
     <View style={styles.container}>
-      <Text style={styles.header}>Your Deliveries</Text>
+      <StatusBar barStyle="light-content" backgroundColor="#000000" />
+      
+      {/* Header */}
+      <View style={styles.headerSection}>
+        <Text style={styles.header}>Assigned Routes</Text>
+      </View>
+
       <FlatList
         data={notifications}
         renderItem={renderItem}
         keyExtractor={item => item.cart_id}
+        contentContainerStyle={styles.listContent}
         refreshControl={
-          <RefreshControl refreshing={refreshing} onRefresh={handleRefresh} />
+          <RefreshControl refreshing={refreshing} onRefresh={handleRefresh} tintColor="#FFFFFF" />
         }
         ListEmptyComponent={
           <View style={styles.emptyContainer}>
-            <MaterialIcons name="notifications-none" size={48} color="#999" />
-            <Text style={styles.emptyText}>No deliveries assigned yet</Text>
+            <View style={styles.emptyIconPlate}>
+              <MaterialIcons name="notifications-none" size={32} color="rgba(255, 255, 255, 0.4)" />
+            </View>
+            <Text style={styles.emptyTitle}>No Pending Deliveries</Text>
+            <Text style={styles.emptyText}>New consignment assignments will appear here automatically.</Text>
           </View>
         }
       />
@@ -151,97 +168,160 @@ const DriverNotificationsScreen = () => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#F7F9FF',
-    padding: 16,
+    backgroundColor: '#000000',
+    paddingHorizontal: 16,
+  },
+  headerSection: {
+    paddingTop: Platform.OS === 'ios' ? 60 : 44,
+    paddingBottom: 16,
+  },
+  header: {
+    fontFamily: ElevenTheme.typography.displayFamily,
+    fontSize: 28,
+    fontWeight: '300',
+    color: '#FFFFFF',
+    letterSpacing: -0.4,
+  },
+  subHeader: {
+    fontSize: 13,
+    color: 'rgba(255, 255, 255, 0.55)',
+    marginTop: 4,
+    letterSpacing: 0.15,
+  },
+  listContent: {
+    paddingBottom: 40,
+    gap: 12,
   },
   loadingContainer: {
     flex: 1,
-    backgroundColor: '#F7F9FF',
+    backgroundColor: '#000000',
     justifyContent: 'center',
     alignItems: 'center',
-  },
-  loadingContent: {
-    backgroundColor: 'white',
-    padding: 24,
-    borderRadius: 12,
-    alignItems: 'center',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 4,
+    gap: 16,
   },
   loadingText: {
-    marginTop: 12,
-    fontSize: 16,
-    color: '#4A5568',
-    fontWeight: '500',
-  },
-  header: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    color: '#1E2A78',
-    marginBottom: 16,
-    marginTop: 48,
+    fontFamily: ElevenTheme.typography.displayFamily,
+    fontSize: 14,
+    color: 'rgba(255, 255, 255, 0.7)',
+    fontWeight: '300',
+    letterSpacing: 0.3,
   },
   notificationCard: {
-    backgroundColor: 'white',
-    borderRadius: 12,
+    backgroundColor: 'rgba(255, 255, 255, 0.06)',
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.12)',
     padding: 16,
-    marginBottom: 12,
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    elevation: 2,
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 10,
+    elevation: 2,
   },
   notificationContent: {
     flexDirection: 'row',
     alignItems: 'center',
     flex: 1,
   },
+  indexBadge: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: '#1D4ED8',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  indexBadgeText: {
+    fontFamily: ElevenTheme.typography.displayFamily,
+    fontSize: 11,
+    fontWeight: '300',
+    color: '#FFFFFF',
+    textAlign: 'center',
+    textAlignVertical: 'center',
+    includeFontPadding: false,
+    lineHeight: 14,
+    ...Platform.select({
+      android: {
+        marginBottom: 1,
+      },
+      ios: {
+        marginBottom: 0,
+      }
+    }),
+  },
   textContainer: {
-    marginLeft: 12,
+    marginLeft: 14,
     flex: 1,
+  },
+  shipmentLabel: {
+    fontFamily: ElevenTheme.typography.displayFamily,
+    fontSize: 12,
+    color: 'rgba(255, 255, 255, 0.55)',
+    fontWeight: '300',
+    letterSpacing: 0.2,
+    marginBottom: 2,
   },
   cartIdText: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#1E2A78',
+    fontFamily: ElevenTheme.typography.displayFamily,
+    fontSize: 15,
+    fontWeight: '300',
+    color: '#FFFFFF',
+    letterSpacing: 0.3,
   },
   subText: {
-    fontSize: 14,
-    color: '#718096',
-    marginTop: 4,
+    fontSize: 12,
+    color: 'rgba(255, 255, 255, 0.5)',
+    marginTop: 2,
+    letterSpacing: 0.15,
   },
   startButton: {
-    backgroundColor: '#4A6CF7',
-    paddingHorizontal: 20,
-    paddingVertical: 8,
-    borderRadius: 8,
+    borderRadius: 10,
+    backgroundColor: '#1D4ED8',
+    paddingHorizontal: 18,
+    paddingVertical: 9,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   buttonText: {
-    color: 'white',
-    fontWeight: '600',
-  },
-  centered: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
+    fontFamily: ElevenTheme.typography.bodyFamily,
+    color: '#FFFFFF',
+    fontSize: 14,
+    fontWeight: '400',
+    letterSpacing: 0.2,
   },
   emptyContainer: {
-    flex: 1,
-    justifyContent: 'center',
     alignItems: 'center',
+    justifyContent: 'center',
     marginTop: 100,
+    paddingHorizontal: 32,
+  },
+  emptyIconPlate: {
+    width: 60,
+    height: 60,
+    borderRadius: 9999,
+    backgroundColor: 'rgba(255, 255, 255, 0.06)',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.12)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 16,
+  },
+  emptyTitle: {
+    fontFamily: ElevenTheme.typography.displayFamily,
+    fontSize: 18,
+    fontWeight: '300',
+    color: '#FFFFFF',
+    marginBottom: 6,
+    textAlign: 'center',
   },
   emptyText: {
-    fontSize: 16,
-    color: '#999',
-    marginTop: 12,
+    fontSize: 13,
+    color: 'rgba(255, 255, 255, 0.45)',
+    textAlign: 'center',
+    lineHeight: 18,
   },
 });
 

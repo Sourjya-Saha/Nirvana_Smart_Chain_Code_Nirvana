@@ -2,6 +2,7 @@ import { apiService } from '@/app/(tabs)/apiservices';
 import useRouteTracking from '@/app/(tabs)/useRouteTracking';
 import { MaterialIcons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { ElevenTheme } from '@/constants/theme';
 import { LinearGradient } from 'expo-linear-gradient';
 import * as Location from 'expo-location';
 import { useLocalSearchParams, useRouter } from 'expo-router';
@@ -68,72 +69,80 @@ interface Route {
 }
 
 
-const NavigationOverlay = ({ navigationState, exitNavigation }) => {
+const NavigationOverlay = ({ navigationState, exitNavigation }: any) => {
   const getManeuverIcon = (instruction = '') => {
     const instructionLower = instruction.toLowerCase();
-    if (instructionLower.includes('turn right')) return 'turn-right';
-    if (instructionLower.includes('turn left')) return 'turn-left';
-    if (instructionLower.includes('u-turn')) return 'u-turn';
+    if (instructionLower.includes('turn right') || instructionLower.includes('slight right')) return 'turn-right';
+    if (instructionLower.includes('turn left') || instructionLower.includes('slight left')) return 'turn-left';
+    if (instructionLower.includes('u-turn')) return 'u-turn-left';
     if (instructionLower.includes('merge')) return 'merge';
-    if (instructionLower.includes('take exit')) return 'exit-to-app';
+    if (instructionLower.includes('take exit') || instructionLower.includes('ramp')) return 'ramp-right';
     if (instructionLower.includes('roundabout')) return 'rotate-right';
-    if (instructionLower.includes('continue')) return 'arrow-upward';
-    if (instructionLower.includes('arrive')) return 'place';
-    return 'directions';
+    if (instructionLower.includes('continue') || instructionLower.includes('straight') || instructionLower.includes('head')) return 'straight';
+    if (instructionLower.includes('arrive') || instructionLower.includes('destination')) return 'place';
+    return 'navigation';
   };
 
   return (
-    <View style={styles.navigationOverlay}>
-      <LinearGradient
-        colors={['rgba(30, 42, 120, 0.95)', 'rgba(74, 108, 247, 0.95)']}
-        style={styles.gradientOverlay}
-      >
-        <View style={styles.navigationHeader}>
-          <View style={styles.navigationTitleContainer}>
-            <MaterialIcons name="navigation" size={24} color="white" />
-            <Text style={styles.navigationTitle}>Active Navigation</Text>
-          </View>
-          <TouchableOpacity onPress={exitNavigation} style={styles.exitButton}>
-            <MaterialIcons name="close" size={24} color="white" />
-          </TouchableOpacity>
+    <>
+      {/* Top Turn-by-Turn Maneuver Banner */}
+      <View style={styles.topNavigationBanner}>
+        <View style={styles.maneuverBadge}>
+          <MaterialIcons
+            name={getManeuverIcon(navigationState.nextManeuver)}
+            size={26}
+            color="#FFFFFF"
+          />
         </View>
 
-        <View style={styles.navigationInfo}>
-          <View style={styles.infoCards}>
-            <View style={styles.infoCard}>
-              <MaterialIcons name="directions-car" size={24} color="white" />
-              <Text style={styles.infoCardTitle}>Distance</Text>
-              <Text style={styles.infoCardValue}>
-                {navigationState.distance || 'Calculating...'}
-              </Text>
-            </View>
-            <View style={styles.infoCard}>
-              <MaterialIcons name="access-time" size={24} color="white" />
-              <Text style={styles.infoCardTitle}>ETA</Text>
-              <Text style={styles.infoCardValue}>
-                {navigationState.duration || 'Calculating...'}
-              </Text>
-            </View>
-          </View>
-
-          <View style={styles.maneuverContainer}>
-            <MaterialIcons
-              name={getManeuverIcon(navigationState.nextManeuver)}
-              size={32}
-              color="white"
-            />
-            <View style={styles.maneuverTextContainer}>
-              <Text style={styles.maneuverText}>
-                {navigationState.nextManeuver || 'Getting next instruction...'}
-              </Text>
-              <Text style={styles.maneuverDistance}>
-                {navigationState.nextManeuverDistance || 'Calculating...'}
-              </Text>
-            </View>
-          </View>
+        <View style={styles.maneuverContent}>
+          <Text style={styles.maneuverDistanceHighlight}>
+            {navigationState.nextManeuverDistance || 'In 100 m'}
+          </Text>
+          <Text style={styles.maneuverInstruction} numberOfLines={2}>
+            {navigationState.nextManeuver || 'Follow route to destination'}
+          </Text>
         </View>
-      </LinearGradient>
-    </View>
+
+        <TouchableOpacity 
+          onPress={exitNavigation} 
+          style={styles.navExitButton}
+          activeOpacity={0.7}
+        >
+          <MaterialIcons name="close" size={18} color="#FFFFFF" />
+        </TouchableOpacity>
+      </View>
+
+      {/* Bottom Live Metrics & Navigation Controls */}
+      <View style={styles.bottomNavigationCard}>
+        <View style={styles.metricColumn}>
+          <Text style={styles.metricLabel}>Distance</Text>
+          <Text style={styles.metricValue}>
+            {navigationState.distance || '-- km'}
+          </Text>
+        </View>
+
+        <View style={styles.metricDivider} />
+
+        <View style={styles.metricColumn}>
+          <Text style={styles.metricLabel}>ETA</Text>
+          <Text style={[styles.metricValue, styles.etaHighlight]}>
+            {navigationState.duration || '-- min'}
+          </Text>
+        </View>
+
+        <View style={styles.metricDivider} />
+
+        <TouchableOpacity 
+          style={styles.navStopButton} 
+          onPress={exitNavigation}
+          activeOpacity={0.8}
+        >
+          <MaterialIcons name="stop" size={16} color="#FFFFFF" />
+          <Text style={styles.navStopText}>Exit</Text>
+        </TouchableOpacity>
+      </View>
+    </>
   );
 };
 
@@ -189,7 +198,7 @@ const TrackingScreen = () => {
       role: 'driver'
     });
 
-    const newSocket = io('http://172.20.10.5:8000', {
+    const newSocket = io('http://192.168.10.104:8000', {
       query: {
         user_id: driverId,
         cart_id: cartId,
@@ -713,7 +722,7 @@ const TrackingScreen = () => {
 
     const initialize = async () => {
       if (!cartId || !driverId) {
-        console.error('Missing required parameters:', { cartId, driverId });
+        console.log('Awaiting route parameters (cartId/driverId):', { cartId, driverId });
         return;
       }
 
@@ -853,7 +862,7 @@ const TrackingScreen = () => {
             try {
               setIsCompletingTransaction(true);
 
-              const response = await fetch('http://172.20.10.5:8000/update_route_status', {
+              const response = await fetch('http://192.168.10.104:8000/update_route_status', {
                 method: 'POST',
                 headers: {
                   'Content-Type': 'application/json',
@@ -1076,38 +1085,44 @@ const TrackingScreen = () => {
     <View style={styles.container}>
       <View style={styles.actionButtonsContainer}>
         <TouchableOpacity
-          style={[styles.actionButton, styles.showDetailsButton]}
-          onPress={handleShipmentsPress}
-        >
-          <MaterialIcons name="notifications" size={28} color="white" />
-          <Text style={styles.actionButtonText}>Your Shipments</Text>
-        </TouchableOpacity>
-
-        <TouchableOpacity
           style={[styles.actionButton, styles.startNavButton]}
           onPress={startNavigation}
+          activeOpacity={0.85}
         >
-          <MaterialIcons name="navigation" size={24} color="white" />
-          <Text style={styles.actionButtonText}>Start Navigation</Text>
+          <MaterialIcons name="navigation" size={24} color="#FFFFFF" />
+          <Text style={styles.startNavButtonText}>Start Navigation</Text>
         </TouchableOpacity>
 
         <TouchableOpacity
           style={[styles.actionButton, styles.showDetailsButton]}
           onPress={toggleDeliveryDetails}
+          activeOpacity={0.85}
         >
-          <MaterialIcons name="info-outline" size={24} color="white" />
-          <Text style={styles.actionButtonText}>Show Delivery Details</Text>
+          <MaterialIcons name="list" size={24} color="#FFFFFF" />
+          <Text style={styles.showDetailsButtonText}>Delivery Details</Text>
         </TouchableOpacity>
 
-        <TouchableOpacity
-          style={[styles.actionButton, styles.startNavButton]}
-          onPress={toggleChat}
-        >
-          <MaterialIcons name="chat" size={24} color="white" />
-          <Text style={styles.actionButtonText}>
-            {showChat ? 'Close Chat' : 'Open Chat'}
-          </Text>
-        </TouchableOpacity>
+        <View style={styles.secondaryButtonGroup}>
+          <TouchableOpacity
+            style={[styles.actionButton, styles.shipmentsButton, { flex: 1 }]}
+            onPress={handleShipmentsPress}
+            activeOpacity={0.85}
+          >
+            <MaterialIcons name="local-shipping" size={22} color="#FFFFFF" />
+            <Text style={styles.shipmentsButtonText}>Shipments</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={[styles.actionButton, styles.chatButton, { flex: 1 }]}
+            onPress={toggleChat}
+            activeOpacity={0.85}
+          >
+            <MaterialIcons name="chat" size={22} color="#FFFFFF" />
+            <Text style={styles.chatButtonText}>
+              {showChat ? 'Close Chat' : 'Chat'}
+            </Text>
+          </TouchableOpacity>
+        </View>
       </View>
 
       <Modal
@@ -1237,7 +1252,7 @@ const TrackingScreen = () => {
             <TouchableOpacity onPress={toggleDeliveryDetails}>
               <View style={styles.head}>
                 <Text style={styles.Title}>Route Details</Text>
-                <Text style={styles.cartId}>#{cartId}</Text>
+                {cartId ? <Text style={styles.cartId}>#{cartId}</Text> : null}
               </View>
             </TouchableOpacity>
 
@@ -1447,11 +1462,11 @@ const TrackingScreen = () => {
         <>
           <View style={styles.headerContainer}>
             <View style={styles.connectionStatus}>
-              <View style={[styles.statusDot, { backgroundColor: isConnected ? '#4CAF50' : '#F44336' }]} />
+              <View style={[styles.statusDot, { backgroundColor: isConnected ? '#10B981' : '#EF4444' }]} />
               <Text style={styles.statusText}>{isConnected ? 'Connected' : 'Disconnected'}</Text>
             </View>
-            <TouchableOpacity style={styles.logoutButton} onPress={handleLogout}>
-              <MaterialIcons name="logout" size={24} color="#F44336" />
+            <TouchableOpacity style={styles.logoutButton} onPress={handleLogout} activeOpacity={0.7}>
+              <MaterialIcons name="logout" size={20} color="#EF4444" />
             </TouchableOpacity>
           </View>
           {!showDeliveryDetails && <ActionButtons />}
@@ -1508,19 +1523,20 @@ const styles = StyleSheet.create({
   },
   headerContainer: {
     position: 'absolute',
-    top: 48,
+    top: Platform.OS === 'ios' ? 52 : 40,
     left: 16,
     right: 16,
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    backgroundColor: 'white',
-    padding: 12,
-    borderRadius: 12,
+    backgroundColor: '#0F172A',
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    borderRadius: 14,
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.25,
+    shadowRadius: 6,
     elevation: 4,
   },
   connectionStatus: {
@@ -1534,12 +1550,14 @@ const styles = StyleSheet.create({
     marginRight: 8,
   },
   statusText: {
+    fontFamily: ElevenTheme.typography.bodyFamily,
     fontSize: 14,
-    fontWeight: '600',
-    color: '#1E2A78',
+    fontWeight: '400',
+    color: '#FFFFFF',
+    letterSpacing: 0.2,
   },
   logoutButton: {
-    padding: 8,
+    padding: 4,
   },
   infoContainer: {
     position: 'absolute',
@@ -1547,7 +1565,7 @@ const styles = StyleSheet.create({
     left: 16,
     right: 16,
     backgroundColor: 'white',
-    borderRadius: 12,
+    borderRadius: 8,
     padding: 16,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
@@ -1556,35 +1574,34 @@ const styles = StyleSheet.create({
     elevation: 4,
   },
   locationInfo: {
-
   },
-  locationTitle: {
-    fontSize: 16, // Slightly larger for modern feel
-    fontWeight: Platform.OS === 'ios' ? '600' : 'bold', // Match platform styles
-    color: '#1A237E', // Deep blue for a modern aesthetic
-    fontFamily: 'Poppins_700Bold',
-    letterSpacing: 0.5, // Subtle spacing for clean typography
-    // Center-align for better balance
-    // Optional: All caps for modern design
+  head: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    padding: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: '#f0f0f0',
   },
   Title: {
-    fontSize: 22, // Slightly larger for modern feel
-    fontWeight: Platform.OS === 'ios' ? '600' : 'bold', // Match platform styles
-    color: 'white', // Deep blue for a modern aesthetic
-    fontFamily: 'Poppins_700Bold',
-    marginLeft: 16,
-    letterSpacing: 0.5, // Subtle spacing for clean typography
-    // Center-align for better balance
-    // Optional: All caps for modern design
+    fontFamily: ElevenTheme.typography.displayFamily,
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: '#333',
+  },
+  locationTitle: {
+    fontFamily: ElevenTheme.typography.displayFamily,
+    fontSize: 16,
+    fontWeight: 'bold',
+    color: '#333',
+    marginBottom: 4,
   },
   locationText: {
-    fontSize: 16,
-    color: '#1A237E',
-    fontWeight: '600',
-    lineHeight: 22,
+    fontSize: 14,
+    color: '#666',
   },
   locationTextContainer: {
-    flex: 1
+    flex: 1,
   },
   markerContainer: {
     backgroundColor: 'transparent',
@@ -1592,102 +1609,131 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   cartId: {
+    fontFamily: ElevenTheme.typography.displayFamily,
     fontSize: 14,
-    color: '#3949AB',
-    fontWeight: '600',
-    backgroundColor: '#E8EAF6',
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 20,
-    overflow: 'hidden'
+    color: '#666',
+    backgroundColor: '#f5f5f5',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 4,
   },
-  navigationOverlay: {
+  topNavigationBanner: {
     position: 'absolute',
-    top: Platform.select({ ios: 60, android: 48 }),
+    top: Platform.select({ ios: 56, android: 44 }),
     left: 16,
     right: 16,
-    backgroundColor: 'rgba(30, 42, 120, 0.95)',
-    borderRadius: 12,
-    padding: 16,
+    backgroundColor: '#0F172A',
+    borderRadius: 16,
+    paddingVertical: 14,
+    paddingHorizontal: 16,
+    flexDirection: 'row',
+    alignItems: 'center',
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
+    shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.25,
-    shadowRadius: 3.84,
-    elevation: 5,
+    shadowRadius: 10,
+    elevation: 8,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.1)',
   },
-  navigationHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 16,
-  },
-  navigationTitle: {
-    color: 'white',
-    fontSize: 18,
-    fontWeight: 'bold',
-  },
-  exitButton: {
-    padding: 8,
-  },
-  navigationInfo: {
-    gap: 16,
-  },
-  infoRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 16,
-  },
-  infoText: {
-    color: 'white',
-    fontSize: 16,
-    fontWeight: '600',
-  },
-  maneuverContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-    backgroundColor: 'rgba(255, 255, 255, 0.1)',
-    padding: 12,
-    borderRadius: 8,
-  },
-  head: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    backgroundColor: '#4A6CF7',
-    padding: 14,
-    borderTopLeftRadius: 32,
-    borderTopRightRadius: 32,
-  },
-  maneuverTextContainer: {
-    flex: 1,
-  },
-  maneuverText: {
-    color: 'white',
-    fontSize: 16,
-    fontWeight: '500',
-  },
-  maneuverDistance: {
-    color: 'rgba(255, 255, 255, 0.8)',
-    fontSize: 14,
-  },
-  startNavigationButton: {
-    position: 'absolute',
-    bottom: 200,
-    left: 16,
-    right: 16,
-    backgroundColor: '#4A6CF7',
-    flexDirection: 'row',
+  maneuverBadge: {
+    width: 44,
+    height: 44,
+    borderRadius: 12,
+    backgroundColor: '#2563EB',
     alignItems: 'center',
     justifyContent: 'center',
-    padding: 16,
-    borderRadius: 12,
-    gap: 8,
+    marginRight: 14,
   },
-  startNavigationText: {
-    color: 'white',
+  maneuverContent: {
+    flex: 1,
+    justifyContent: 'center',
+  },
+  maneuverDistanceHighlight: {
+    fontFamily: ElevenTheme.typography.displayFamily,
+    fontSize: 14,
+    fontWeight: '400',
+    color: '#60A5FA',
+    marginBottom: 2,
+  },
+  maneuverInstruction: {
+    fontFamily: ElevenTheme.typography.displayFamily,
+    fontSize: 15,
+    fontWeight: '300',
+    color: '#FFFFFF',
+    lineHeight: 20,
+  },
+  navExitButton: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: 'rgba(255, 255, 255, 0.12)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginLeft: 10,
+  },
+  bottomNavigationCard: {
+    position: 'absolute',
+    bottom: Platform.select({ ios: 36, android: 24 }),
+    left: 16,
+    right: 16,
+    backgroundColor: '#0F172A',
+    borderRadius: 18,
+    paddingVertical: 14,
+    paddingHorizontal: 20,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.3,
+    shadowRadius: 12,
+    elevation: 10,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.1)',
+  },
+  metricColumn: {
+    alignItems: 'center',
+    flex: 1,
+  },
+  metricLabel: {
+    fontFamily: ElevenTheme.typography.displayFamily,
+    fontSize: 11,
+    color: '#94A3B8',
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+    marginBottom: 2,
+  },
+  metricValue: {
+    fontFamily: ElevenTheme.typography.displayFamily,
     fontSize: 16,
-    fontWeight: '600',
+    fontWeight: '400',
+    color: '#FFFFFF',
+  },
+  etaHighlight: {
+    color: '#34D399',
+  },
+  metricDivider: {
+    width: 1,
+    height: 28,
+    backgroundColor: 'rgba(255, 255, 255, 0.12)',
+    marginHorizontal: 8,
+  },
+  navStopButton: {
+    backgroundColor: '#DC2626',
+    paddingVertical: 8,
+    paddingHorizontal: 14,
+    borderRadius: 10,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    marginLeft: 8,
+  },
+  navStopText: {
+    fontFamily: ElevenTheme.typography.bodyFamily,
+    color: '#FFFFFF',
+    fontSize: 13,
+    fontWeight: '400',
   },
   iconContainer: {
     backgroundColor: 'transparent',
@@ -1716,207 +1762,147 @@ const styles = StyleSheet.create({
   },
   actionButtonsContainer: {
     position: 'absolute',
-    bottom: 80,
+    bottom: Platform.OS === 'ios' ? 40 : 20,
     left: 16,
     right: 16,
     flexDirection: 'column',
-    gap: 12
+    gap: 12,
   },
   actionButton: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    padding: 16,
-    borderRadius: 12,
-    gap: 8,
+    paddingVertical: 17,
+    paddingHorizontal: 18,
+    borderRadius: 14,
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 4
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.25,
+    shadowRadius: 6,
+    elevation: 4,
+    gap: 10,
   },
   startNavButton: {
-    backgroundColor: '#4A6CF7'
+    backgroundColor: '#1D4ED8',
+  },
+  startNavButtonText: {
+    fontFamily: ElevenTheme.typography.bodyFamily,
+    color: '#FFFFFF',
+    fontSize: 16,
+    fontWeight: '400',
+    letterSpacing: 0.2,
   },
   showDetailsButton: {
-    backgroundColor: '#1E2A78'
+    backgroundColor: '#0F172A',
   },
-  actionButtonText: {
-    color: 'white',
+  showDetailsButtonText: {
+    fontFamily: ElevenTheme.typography.bodyFamily,
+    color: '#FFFFFF',
     fontSize: 16,
-    fontWeight: '600'
+    fontWeight: '400',
+    letterSpacing: 0.2,
+  },
+  secondaryButtonGroup: {
+    flexDirection: 'row',
+    gap: 12,
   },
   shipmentsButton: {
-    backgroundColor: '#4A6FA5', // Blue shade
+    backgroundColor: '#1D4ED8',
   },
-  navigationButton: {
-    backgroundColor: '#47A025', // Green shade
-  },
-  detailsButton: {
-    backgroundColor: '#9252A3', // Purple shade
+  shipmentsButtonText: {
+    fontFamily: ElevenTheme.typography.bodyFamily,
+    color: '#FFFFFF',
+    fontSize: 16,
+    fontWeight: '400',
+    letterSpacing: 0.2,
   },
   chatButton: {
-    backgroundColor: '#D95829', // Orange shade
+    backgroundColor: '#15803D',
+  },
+  chatButtonText: {
+    fontFamily: ElevenTheme.typography.bodyFamily,
+    color: '#FFFFFF',
+    fontSize: 16,
+    fontWeight: '400',
+    letterSpacing: 0.2,
   },
   deliveryDetailsContainer: {
     position: 'absolute',
     bottom: 0,
     left: 0,
     right: 0,
-    backgroundColor: '#FFFFFF',
-    borderTopLeftRadius: 32,
-    borderTopRightRadius: 32,
-    // padding: 24,
+    backgroundColor: 'white',
+    borderTopLeftRadius: 16,
+    borderTopRightRadius: 16,
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: -8 },
-    shadowOpacity: 0.15,
-    shadowRadius: 16,
-    elevation: 24
-  },
-  detailsHeader: {
-    flexDirection: 'row',
-    justifyContent: 'flex-end',
-    marginBottom: 20
-  },
-  // ... [add all the new styles for navigation overlay and other components]
-  gradientOverlay: {
-    borderRadius: 12,
-    padding: 16
-  },
-  navigationTitleContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8
-  },
-  infoCards: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    marginBottom: 16
-  },
-  infoCard: {
-    flex: 1,
-    backgroundColor: 'rgba(255, 255, 255, 0.1)',
-    borderRadius: 12,
-    padding: 16,
-    marginHorizontal: 6,
-    alignItems: 'center'
-  },
-  infoCardTitle: {
-    color: 'rgba(255, 255, 255, 0.7)',
-    fontSize: 14,
-    marginTop: 8
-  },
-  infoCardValue: {
-    color: 'white',
-    fontSize: 16,
-    fontWeight: '600',
-    marginTop: 4
-  },
-  locationLabel: {
-    fontSize: 14,
-    color: '#666',
-    marginBottom: 4,
-    fontWeight: '500'
+    shadowOffset: { width: 0, height: -2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 8,
   },
   locationsList: {
-    marginTop: 4,
-    paddingLeft: 24,
-    paddingRight: 24,
-    paddingTop: 18,
-    gap: 10
+    padding: 16,
   },
   locationItem: {
     flexDirection: 'row',
     alignItems: 'flex-start',
-    gap: 16
+    marginBottom: 16,
   },
   locationIcon: {
-    alignItems: 'center'
-  },
-  iconCircle: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
-    justifyContent: 'center',
     alignItems: 'center',
-    marginBottom: 8,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3
+    marginRight: 12,
   },
   verticalLine: {
     width: 2,
-    height: 70,
+    height: 40,
     backgroundColor: '#E0E0E0',
-    marginVertical: 4
+    marginTop: 4,
   },
   locationDetails: {
     flex: 1,
-    backgroundColor: '#F8F9FF',
-    borderRadius: 16,
-    padding: 12,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.05,
-    shadowRadius: 8,
-    elevation: 2
-  },
-  locationName: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#1A237E',
-    marginBottom: 4
   },
   locationAddress: {
     fontSize: 14,
-    color: '#64748B',
-    lineHeight: 20
+    color: '#666',
   },
   completeButton: {
     backgroundColor: '#4CAF50',
-    borderRadius: 16,
-    padding: Platform.select({ ios: 18, android: 16 }),
-    marginTop: 22,
-    marginLeft: 32,
-    marginRight: 32,
-    marginBottom: 20,
-    shadowColor: '#4CAF50',
+    padding: 16,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.28)',
+    margin: 16,
+    shadowColor: '#000',
     shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.2,
+    shadowOpacity: 0.18,
     shadowRadius: 8,
     elevation: 4,
-    transform: [{ scale: 1 }]
-  },
-  completeButtonPressed: {
-    transform: [{ scale: 0.98 }]
   },
   completeButtonDisabled: {
-    backgroundColor: '#A5D6A7',
-    shadowOpacity: 0
+    opacity: 0.7,
   },
   buttonContent: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center'
+    justifyContent: 'center',
+    gap: 8,
   },
   completeButtonText: {
-    color: 'white',
-    fontSize: 18,
-    fontWeight: '700',
-    marginLeft: 12,
-    letterSpacing: 0.5
+    fontFamily: ElevenTheme.typography.bodyFamily,
+    color: '#FFFFFF',
+    fontSize: 15,
+    fontWeight: '400',
+    letterSpacing: 0.2,
   },
   loadingContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 12
+    gap: 12,
   },
   noRouteContainer: {
     alignItems: 'center',
     padding: 40,
-    gap: 16
+    gap: 16,
   },
   noRouteIcon: {
     backgroundColor: '#EEF2FF',
@@ -1926,13 +1912,13 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.1,
     shadowRadius: 12,
-    elevation: 4
+    elevation: 4,
   },
   noRouteText: {
     fontSize: 18,
     color: '#64748B',
     fontWeight: '500',
-    textAlign: 'center'
+    textAlign: 'center',
   },
   modalContainer: {
     flex: 1,
@@ -1943,7 +1929,6 @@ const styles = StyleSheet.create({
   chatContainer: {
     width: width * 0.9,
     height: height * 0.8,
-    // backgroundColor: 'white',
     borderRadius: 24,
     overflow: 'hidden',
     ...Platform.select({

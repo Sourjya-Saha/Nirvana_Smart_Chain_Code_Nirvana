@@ -61,7 +61,7 @@ const DriverAuthContent = () => {
 
   const fetchOrganizations = async () => {
     try {
-      const response = await fetch('http://172.20.10.5:8000/fetch_users');
+      const response = await fetch('http://192.168.10.104:8000/fetch_users');
       const data = await response.json();
       if (data.users) {
         setOrganizations(data.users);
