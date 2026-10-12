@@ -16,6 +16,7 @@ import {
     Home,
     Box
 } from 'lucide-react';
+import nscLogo from '../assets/nsc_logo.png';
 
 const SideManu = () => {
     const [isNavbarVisible, setIsNavbarVisible] = useState(false);
@@ -122,7 +123,7 @@ const SideManu = () => {
                                 to="/"
                             >
       <img 
-  src="https://ipfs.io/ipfs/bafybeigbsspj5dc73hzywe5gwk3rcoj6ubtgdi4ku3k5wff4guibj22gdq"
+  src={nscLogo}
   alt="NSC Token"
   style={{ 
     width: '32px', 

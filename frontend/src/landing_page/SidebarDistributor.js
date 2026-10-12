@@ -16,6 +16,7 @@ import {
     Home,
     Box
 } from 'lucide-react';
+import nscLogo from '../assets/nsc_logo.png';
 
 const SideDistributor = () => {
     const [isNavbarVisible, setIsNavbarVisible] = useState(false);
@@ -130,7 +131,19 @@ const SideDistributor = () => {
                                 onClick={() => handleLinkClick('home')}
                                 to="/"
                             >
-                                <Home className="nav_logo-icon dash w-7 h-7" />
+      <img 
+  src={nscLogo}
+  alt="NSC Token"
+  style={{ 
+    width: '32px', 
+    height: '32px', 
+    borderRadius: '10px', 
+    objectFit: 'cover',
+    backgroundColor: 'black',
+    flexShrink: 0
+  }}
+  onError={(e) => { e.target.onerror = null; e.target.src = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='50' height='50' viewBox='0 0 50 50'%3E%3Crect width='50' height='50' fill='%23f6f5ff'/%3E%3Ctext x='50%25' y='50%25' font-family='Arial' font-size='8' text-anchor='middle' dominant-baseline='middle' fill='%23a19bf7'%3ENSC%3C/text%3E%3C/svg%3E"; }}
+/>
                                 <span className="nav_logo-name">
                                     <span style={{ color: "orange" }}>Nirvana</span>
                                     <br />

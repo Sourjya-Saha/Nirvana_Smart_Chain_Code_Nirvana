@@ -19,8 +19,9 @@ import {
     Settings,
     Truck,
     FileStack,
-    MessageSquare 
+    MessageSquare
 } from 'lucide-react';
+import nscLogo from '../assets/nsc_logo.png';
 
 const Sidebar = () => {
     const [isNavbarVisible, setIsNavbarVisible] = useState(false);
@@ -98,7 +99,7 @@ const Sidebar = () => {
                         <div>
                             <Link className="nav_logo" to="">
                                <img 
-  src="https://ipfs.io/ipfs/bafybeigbsspj5dc73hzywe5gwk3rcoj6ubtgdi4ku3k5wff4guibj22gdq"
+  src={nscLogo}
   alt="NSC Token"
   style={{ 
     width: '32px', 

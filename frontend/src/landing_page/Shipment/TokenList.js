@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import './TokenList.css';
+import nscLogo from "../../assets/nsc_logo.png";
 
 // Data URI for a simple placeholder
 const FALLBACK_IMAGE = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='50' height='50' viewBox='0 0 50 50'%3E%3Crect width='50' height='50' fill='%23f0f0f0'/%3E%3Ctext x='50%25' y='50%25' font-family='Arial' font-size='8' text-anchor='middle' dominant-baseline='middle' fill='%23999'%3ENo Image%3C/text%3E%3C/svg%3E";
@@ -33,7 +34,7 @@ const TokenList = () => {
             // Set the correct logo URL using the logo CID
             return {
               ...token,
-              logoURI: `https://ipfs.io/ipfs/${LOGO_CID}`
+              logoURI: nscLogo
             };
           });
           
@@ -48,7 +49,7 @@ const TokenList = () => {
               symbol: "NSC",
               address: "0xc905e61E2a5DD4CEE5a62b8b2ef16F910D7CCC64",
               decimals: 18,
-              logoURI: `https://ipfs.io/ipfs/${LOGO_CID}`
+              logoURI: nscLogo
             },
             // Add more fallback tokens if needed
           ]);

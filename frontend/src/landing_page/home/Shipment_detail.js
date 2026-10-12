@@ -459,7 +459,7 @@ return(
 
         <div style={styles.mapContainer}>
           <ShipmentTracking
-            userRole="wholesaler"
+            userRole="retailer"
             userId={selectedShipmentLocations.userId}
             cartId={selectedShipmentLocations.cartId}
             initialStartLocation={selectedShipmentLocations.startLocation}        // Already in coordinate format

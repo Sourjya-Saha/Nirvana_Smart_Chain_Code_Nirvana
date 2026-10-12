@@ -1,13 +1,14 @@
 import React, { useState, useEffect } from "react";
 import './TokenInfo.css';
 import { ethers } from 'ethers';
+import nscLogo from "../../assets/nsc_logo.png";
 
 // Import just what we need from TokenList
 const LOGO_CID = "bafybeigbsspj5dc73hzywe5gwk3rcoj6ubtgdi4ku3k5wff4guibj22gdq";
 const FALLBACK_IMAGE = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='50' height='50' viewBox='0 0 50 50'%3E%3Crect width='50' height='50' fill='%23f6f5ff'/%3E%3Ctext x='50%25' y='50%25' font-family='Arial' font-size='8' text-anchor='middle' dominant-baseline='middle' fill='%23a19bf7'%3ENSC%3C/text%3E%3C/svg%3E";
 
 const TokenInfoSection = ({ tokenBalance, isAddressWhitelisted, transactionFee, allowance, approveTokenSpending }) => {
-  const [logoUrl, setLogoUrl] = useState(`https://ipfs.io/ipfs/${LOGO_CID}`);
+  const [logoUrl, setLogoUrl] = useState(nscLogo);
   const [showTooltip, setShowTooltip] = useState(false);
 
   // Handle logo loading issues
