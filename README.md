@@ -11,6 +11,22 @@
 
 ---
 
+## 📸 Product Interface & Visual Showcase
+
+| **Nirvana Health Chain Gateway** | **Pharmacy Analytics & Management Dashboard** |
+|:---:|:---:|
+| <img src="docs/images/01-nirvana-health-chain-hero.png" width="100%" alt="Nirvana Health Chain Hero"> | <img src="docs/images/02-pharmacy-dashboard.png" width="100%" alt="Pharmacy Dashboard"> |
+| *Decentralized portal entry and authentication gateway* | *Real-time telemetry on inventory, stock valuation, and order flow* |
+
+| **Dispensary Warehouse Shelf Kiosk** | **Shipment Protocol & Dual-Camera Verification** |
+|:---:|:---:|
+| <img src="docs/images/03-dispensary-warehouse-kiosk.png" width="100%" alt="Dispensary Warehouse Kiosk"> | <img src="docs/images/04-blockchain-shipment-settlement.png" width="100%" alt="Blockchain Shipment Settlement"> |
+| *Interactive 3D storage bays, formulation search, and SKU counts* | *Live camera scanning, token allowance, and smart settlement* |
+
+> 📄 **Product Documentation**: Complete visual breakdown and specifications available in [**docs/PRODUCT_SHOWCASE.md**](docs/PRODUCT_SHOWCASE.md) and the formal Word specification [**docs/Nirvana_Smart_Chain_Product_Documentation.docx**](docs/Nirvana_Smart_Chain_Product_Documentation.docx).
+
+---
+
 # 🚀 Overview
 
 🎥 **Project Demonstration**
