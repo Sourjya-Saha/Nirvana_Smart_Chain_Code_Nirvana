@@ -26,6 +26,7 @@ yarn-error.log*
 .env
 *.env
 .env.*
+.env*.local
 !.env.example
 
 # Python
@@ -33,3 +34,5 @@ __pycache__/
 *.py[cod]
 *$py.class
 *.log
+
+backend_zip/

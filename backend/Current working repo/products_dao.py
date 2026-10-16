@@ -1,7 +1,38 @@
 from sql_connection import get_sql_connection
-from datetime import date
+from datetime import date, datetime
 import json
 import base64
+import re
+
+
+def parse_safe_date(date_val):
+    if not date_val:
+        return None
+    if hasattr(date_val, 'strftime'):
+        return date_val.strftime("%Y-%m-%d")
+    d_str = str(date_val).strip()
+    if not d_str or d_str in ("None", "null", "undefined", "—"):
+        return None
+    if re.match(r"^\d{4}-\d{2}-\d{2}$", d_str):
+        return d_str
+    for fmt in (
+        "%a, %d %b %Y %H:%M:%S %Z",
+        "%a, %d %b %Y",
+        "%d %b %Y",
+        "%Y-%m-%d",
+        "%d/%m/%Y",
+        "%m/%d/%Y",
+        "%Y/%m/%d"
+    ):
+        try:
+            return datetime.strptime(d_str, fmt).strftime("%Y-%m-%d")
+        except Exception:
+            pass
+    match = re.search(r"(\d{4})[-/](\d{1,2})[-/](\d{1,2})", d_str)
+    if match:
+        y, m, d = match.groups()
+        return f"{int(y):04d}-{int(m):02d}-{int(d):02d}"
+    return None
 
 
 def get_all_products(connection, user_id):
@@ -11,7 +42,7 @@ def get_all_products(connection, user_id):
         SELECT products.id, products.name, products.price_per_unit, uom_table.uom_name,
                products.quantity_of_uom, products.category, products.exp_date,
                products.shelf_num, products.picture_of_the_prod, products.description,
-               products.reference_cart
+               products.reference_cart, products.uom_id
         FROM products
         INNER JOIN uom_table ON products.uom_id = uom_table.uom_id
         WHERE products.user_id = %s
@@ -32,7 +63,8 @@ def get_all_products(connection, user_id):
         shelf_num,
         picture_of_the_prod,
         description,
-        reference_cart
+        reference_cart,
+        uom_id
     ) in cursor:
 
         image_base64 = None
@@ -44,6 +76,12 @@ def get_all_products(connection, user_id):
         except json.JSONDecodeError:
             parsed_reference_cart = {}
 
+        formatted_exp_date = (
+            exp_date.strftime("%Y-%m-%d")
+            if hasattr(exp_date, "strftime") and exp_date
+            else (str(exp_date) if exp_date else None)
+        )
+
         response.append({
             "product_id": id,
             "name": name,
@@ -51,11 +89,12 @@ def get_all_products(connection, user_id):
             "uom_name": uom_name,
             "quantity_of_uom": quantity_of_uom,
             "category": category,
-            "exp_date": exp_date,
+            "exp_date": formatted_exp_date,
             "shelf_num": shelf_num,
             "picture_of_the_prod": image_base64,
             "description": description,
-            "reference_cart": parsed_reference_cart
+            "reference_cart": parsed_reference_cart,
+            "uom_id": uom_id
         })
 
     return response
@@ -64,7 +103,7 @@ def get_all_products(connection, user_id):
 def insert_new_product(connection, product, user_id, cart_id=None):
     cursor = connection.cursor()
 
-    reference_cart = {}
+    reference_cart = None
 
     if cart_id:
         reference_cart = {
@@ -82,16 +121,22 @@ def insert_new_product(connection, product, user_id, cart_id=None):
         VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
     """
 
+    name = str(product.get("name") or "").strip()[:255]
+    category = str(product.get("category") or "").strip()[:100]
+    shelf_num = str(product.get("shelf_num") or "").strip()[:100]
+    description = str(product.get("description") or "").strip()
+    exp_date = parse_safe_date(product.get("exp_date")) or str(date.today())
+
     data = (
-        product.get("name"),
+        name,
         product.get("uom_id"),
         product.get("price_per_unit"),
         product.get("quantity_of_uom"),
-        product.get("category"),
-        product.get("exp_date"),
-        product.get("shelf_num"),
+        category,
+        exp_date,
+        shelf_num,
         product.get("picture_of_the_prod"),
-        product.get("description"),
+        description,
         user_id,
         json.dumps(reference_cart) if reference_cart else None
     )
@@ -116,30 +161,76 @@ def delete_product(connection, product_id):
 def edit_product(connection, product_id, updated_product):
     cursor = connection.cursor()
 
-    query = """
-        UPDATE products SET
-        name = %s,
-        price_per_unit = %s,
-        quantity_of_uom = %s,
-        category = %s,
-        shelf_num = %s,
-        description = %s,
-        exp_date = %s,
-        picture_of_the_prod = %s
-        WHERE id = %s
-    """
+    name = str(updated_product.get("name") or "").strip()[:255]
+    category = str(updated_product.get("category") or "").strip()[:100]
+    shelf_num = str(updated_product.get("shelf_num") or "").strip()[:100]
+    description = str(updated_product.get("description") or "").strip()
+    safe_exp_date = parse_safe_date(updated_product.get("exp_date"))
 
-    data = (
-        updated_product.get("name"),
-        updated_product.get("price_per_unit"),
-        updated_product.get("quantity_of_uom"),
-        updated_product.get("category"),
-        updated_product.get("shelf_num"),
-        updated_product.get("description"),
-        updated_product.get("exp_date"),
-        updated_product.get("picture_of_the_prod"),
-        product_id
+    uom_id = updated_product.get("uom_id")
+    if uom_id is not None:
+        try:
+            uom_id = int(uom_id)
+        except (ValueError, TypeError):
+            uom_id = None
+
+    image_blob = updated_product.get("picture_of_the_prod")
+    has_new_image = (
+        image_blob is not None
+        and isinstance(image_blob, (bytes, bytearray))
+        and len(image_blob) > 0
     )
+
+    if has_new_image:
+        query = """
+            UPDATE products SET
+            name = %s,
+            price_per_unit = %s,
+            quantity_of_uom = %s,
+            category = %s,
+            shelf_num = %s,
+            description = %s,
+            exp_date = COALESCE(%s, exp_date),
+            uom_id = COALESCE(%s, uom_id),
+            picture_of_the_prod = %s
+            WHERE id = %s
+        """
+        data = (
+            name,
+            updated_product.get("price_per_unit"),
+            updated_product.get("quantity_of_uom"),
+            category,
+            shelf_num,
+            description,
+            safe_exp_date,
+            uom_id,
+            image_blob,
+            product_id
+        )
+    else:
+        query = """
+            UPDATE products SET
+            name = %s,
+            price_per_unit = %s,
+            quantity_of_uom = %s,
+            category = %s,
+            shelf_num = %s,
+            description = %s,
+            exp_date = COALESCE(%s, exp_date),
+            uom_id = COALESCE(%s, uom_id)
+            WHERE id = %s
+        """
+        data = (
+            name,
+            updated_product.get("price_per_unit"),
+            updated_product.get("quantity_of_uom"),
+            category,
+            shelf_num,
+            description,
+            safe_exp_date,
+            uom_id,
+            product_id
+        )
 
     cursor.execute(query, data)
     connection.commit()

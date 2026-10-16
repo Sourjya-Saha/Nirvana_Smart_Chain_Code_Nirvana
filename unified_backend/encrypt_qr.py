@@ -188,9 +188,9 @@ def decrypt_cart_id_app(encrypted_cart_id):
 if __name__ == "__main__":
     qr_data = {
         "cart_id": "6177",
-        "recivers_addressM": "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266",
-        "recivers_addressW": "0xd7BfC29983527b31724F98a6dA8Bb13473023E84",
-        "recivers_addressR": "0x70997970C51812dc3A010C7d01b50e0d17dc79C8",
+        "recivers_addressM": os.getenv("MANUFACTURER_DEMO_ADDRESS", "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266"),
+        "recivers_addressW": os.getenv("WHOLESALER_DEMO_ADDRESS", "0xd7BfC29983527b31724F98a6dA8Bb13473023E84"),
+        "recivers_addressR": os.getenv("RETAILER_DEMO_ADDRESS", "0x70997970C51812dc3A010C7d01b50e0d17dc79C8"),
         "Date": "2024-12-13"
     }
 

@@ -162,7 +162,11 @@ def edit_product():
 
         image_blob = None
         if 'image' in request.files:
-            image_blob = request.files['image'].read()
+            file_obj = request.files['image']
+            if file_obj and getattr(file_obj, 'filename', '') != '':
+                data = file_obj.read()
+                if data and len(data) > 0:
+                    image_blob = data
 
         updated_product = {
             'name': request_payload.get('name'),
@@ -172,6 +176,7 @@ def edit_product():
             'shelf_num': request_payload.get('shelf_num'),
             'description': request_payload.get('description'),
             'exp_date': request_payload.get('exp_date'),
+            'uom_id': request_payload.get('uom_id'),
             'picture_of_the_prod': image_blob
         }
 

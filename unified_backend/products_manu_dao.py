@@ -89,16 +89,21 @@ def insert_new_product_manu(connection, product, user_id, image_blob):
         VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
     """
 
+    name = str(product.get('name') or '').strip()[:255]
+    category = str(product.get('category') or '').strip()[:100]
+    shelf_num = str(product.get('shelf_num') or '').strip()[:100]
+    description = str(product.get('description') or '').strip()
+
     data = (
-        product['name'],
-        product['uom_id'],
-        product['price_per_unit'],
-        product['quantity_of_uom'],
-        product['category'],
+        name,
+        product.get('uom_id'),
+        product.get('price_per_unit'),
+        product.get('quantity_of_uom'),
+        category,
         formatted_date,
-        product['shelf_num'],
+        shelf_num,
         image_blob,   # ✅ BLOB
-        product['description'],
+        description,
         user_id
     )
 

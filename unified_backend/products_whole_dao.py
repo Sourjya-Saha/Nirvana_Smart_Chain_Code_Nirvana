@@ -72,16 +72,21 @@ def insert_new_product_whole(connection, product, user_id, cart_id=None):
         VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
     """)
 
+    name = str(product.get('name') or '').strip()[:255]
+    category = str(product.get('category') or '').strip()[:100]
+    shelf_num = str(product.get('shelf_num') or '').strip()[:100]
+    description = str(product.get('description') or '').strip()
+
     data = (
-        product['name'],
-        product['uom_id'],
-        product['price_per_unit'],
-        product['quantity_of_uom'],
-        product['category'],
-        product['exp_date'],
-        product['shelf_num'],
-        product['picture_of_the_prod'],
-        product['description'],
+        name,
+        product.get('uom_id'),
+        product.get('price_per_unit'),
+        product.get('quantity_of_uom'),
+        category,
+        product.get('exp_date'),
+        shelf_num,
+        product.get('picture_of_the_prod'),
+        description,
         user_id,
         initial_reference
     )

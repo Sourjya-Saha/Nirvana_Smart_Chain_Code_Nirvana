@@ -50,8 +50,8 @@ from datetime import datetime
 from dateutil import parser
 import traceback
 # Razorpay credentials (replace with your actual keys)
-RAZORPAY_KEY_ID = 'rzp_test_2EpPSCTb8XHFCk'           #prvt details
-RAZORPAY_KEY_SECRET = 'jHxKaISFIwGZ1byoWqtzldAB' #prvt details
+RAZORPAY_KEY_ID = os.getenv('RAZORPAY_KEY_ID', 'rzp_test_ToXzU7ueHLR5Wr')
+RAZORPAY_KEY_SECRET = os.getenv('RAZORPAY_KEY_SECRET', 'tcl8b7NSD2EQD5W7R7KM13WR')
 
 # Razorpay client instance
 razorpay_client = razorpay.Client(auth=(RAZORPAY_KEY_ID, RAZORPAY_KEY_SECRET))
@@ -161,7 +161,8 @@ def get_all_products_global(connection):
     query = ("""
         SELECT products.id, products.name, products.price_per_unit, uom_table.uom_name, 
                products.quantity_of_uom, products.category, products.exp_date, 
-               products.shelf_num, products.picture_of_the_prod, products.description
+               products.shelf_num, products.picture_of_the_prod, products.description,
+               products.uom_id
         FROM products
         INNER JOIN uom_table ON products.uom_id = uom_table.uom_id
     """)
@@ -171,7 +172,7 @@ def get_all_products_global(connection):
 
     response = []
     for (id, name, price_per_unit, uom_name, quantity_of_uom, category, exp_date, shelf_num, picture_of_the_prod,
-         description) in cursor:
+         description, uom_id) in cursor:
         image_val = None
         if picture_of_the_prod:
             if isinstance(picture_of_the_prod, bytes):
@@ -190,7 +191,8 @@ def get_all_products_global(connection):
             'exp_date': exp_date.strftime("%Y-%m-%d") if hasattr(exp_date, 'strftime') else str(exp_date) if exp_date else None,
             'shelf_num': shelf_num,
             'picture_of_the_prod': image_val,
-            'description': description
+            'description': description,
+            'uom_id': uom_id
         })
 
     return response
@@ -225,7 +227,11 @@ def edit_product():
 
         image_blob = None
         if 'image' in request.files:
-            image_blob = request.files['image'].read()
+            file_obj = request.files['image']
+            if file_obj and getattr(file_obj, 'filename', '') != '':
+                data = file_obj.read()
+                if data and len(data) > 0:
+                    image_blob = data
 
         updated_product = {
             'name': request_payload.get('name'),
@@ -235,6 +241,7 @@ def edit_product():
             'shelf_num': request_payload.get('shelf_num'),
             'description': request_payload.get('description'),
             'exp_date': request_payload.get('exp_date'),
+            'uom_id': request_payload.get('uom_id'),
             'picture_of_the_prod': image_blob
         }
 
@@ -699,21 +706,165 @@ def generate_qr():
 #         return jsonify({"error": f"Error scanning QR code: {str(e)}"}), 500
 
 
-@app.route('/scan_qr', methods=['GET'])
+@app.route('/scan_qr', methods=['GET', 'POST'])
 def scan_qr():
+    """
+    Combined QR code scanner supporting:
+    1. Client-side Live Camera Feed: decodes QR payload sent via POST { "qr_text": "..." } or { "image_base64": "..." }
+    2. IP Webcam Stream: scans stream from IP webcam (default: http://192.168.10.101:8081/video or custom URL)
+    3. Local Device Webcam: scans local webcam index 0 (or specified camera index)
+    """
+    global global_qr_data
     try:
-        qr_data = scan_qr_codes(1)   # ✅ 0 = default laptop webcam
+        from qr_code_scanner import process_qr_data_string, scan_qr_codes
 
-        global global_qr_data
+        # Option A: POST request
+        if request.method == 'POST':
+            # Check multipart files
+            if 'image' in request.files:
+                import numpy as np
+                import cv2
+                import pyzbar.pyzbar as pyzbar
+                image_file = request.files['image']
+                file_bytes = np.frombuffer(image_file.read(), np.uint8)
+                frame = cv2.imdecode(file_bytes, cv2.IMREAD_COLOR)
+                if frame is not None:
+                    qr_codes = pyzbar.decode(frame)
+                    if not qr_codes:
+                        resized = cv2.resize(frame, (0, 0), fx=0.5, fy=0.5)
+                        qr_codes = pyzbar.decode(resized)
+                    for q in qr_codes:
+                        try:
+                            decoded_str = q.data.decode('utf-8')
+                            qr_data = process_qr_data_string(decoded_str)
+                            if qr_data is not None:
+                                global_qr_data = qr_data
+                                return jsonify({"status": "success", "source": "uploaded_image", "qr_data": qr_data}), 200
+                        except Exception as e:
+                            continue
+                    return jsonify({"status": "failure", "error": "No consignment QR code detected in the uploaded image."}), 404
+
+            req_data = request.get_json(silent=True) or {}
+            qr_text = req_data.get('qr_text') or req_data.get('qr_data')
+            if qr_text:
+                qr_data = process_qr_data_string(qr_text)
+                if qr_data is not None:
+                    global_qr_data = qr_data
+                    return jsonify({"status": "success", "source": "client_payload", "qr_data": qr_data}), 200
+                else:
+                    return jsonify({"status": "failure", "error": "Failed to decrypt scanned QR data payload"}), 400
+
+            # Direct base64 frame from client live camera feed
+            image_b64 = req_data.get('image_base64') or req_data.get('image')
+            if image_b64:
+                import base64
+                import numpy as np
+                import cv2
+                import pyzbar.pyzbar as pyzbar
+                try:
+                    if ',' in image_b64:
+                        image_b64 = image_b64.split(',', 1)[1]
+                    img_bytes = base64.b64decode(image_b64)
+                    np_arr = np.frombuffer(img_bytes, np.uint8)
+                    frame = cv2.imdecode(np_arr, cv2.IMREAD_COLOR)
+                    if frame is not None:
+                        qr_codes = pyzbar.decode(frame)
+                        if not qr_codes:
+                            resized = cv2.resize(frame, (0, 0), fx=0.5, fy=0.5)
+                            qr_codes = pyzbar.decode(resized)
+                        for q in qr_codes:
+                            try:
+                                decoded_str = q.data.decode('utf-8')
+                                qr_data = process_qr_data_string(decoded_str)
+                                if qr_data is not None:
+                                    global_qr_data = qr_data
+                                    return jsonify({"status": "success", "source": "camera_frame", "qr_data": qr_data}), 200
+                            except Exception as ex:
+                                continue
+                        return jsonify({"status": "failure", "error": "No QR code detected in captured frame. Hold QR steady."}), 404
+                except Exception as frame_err:
+                    print(f"[scan_qr] frame decode error: {frame_err}")
+                    return jsonify({"status": "failure", "error": f"Error decoding image frame: {str(frame_err)}"}), 400
+
+            source_type = (req_data.get('source') or '').lower()
+            if source_type in ['webcam', 'camera', 'local']:
+                cam_req = req_data.get('camera')
+                target = int(cam_req) if cam_req is not None else 0
+                print(f"[scan_qr] Scanning via Webcam (camera {target})...")
+                qr_data = scan_qr_codes(target)
+                if qr_data is None:
+                    alt_target = 1 if target == 0 else 0
+                    print(f"[scan_qr] Trying fallback camera {alt_target}...")
+                    qr_data = scan_qr_codes(alt_target)
+
+                global_qr_data = qr_data
+                if qr_data is not None:
+                    return jsonify({"status": "success", "source": "webcam", "qr_data": qr_data}), 200
+                else:
+                    return jsonify({"status": "failure", "error": "No QR code detected from webcam. Please hold QR code steady in front of camera."}), 404
+
+            elif source_type in ['ip_webcam', 'stream']:
+                ip_url = req_data.get('url') or "http://192.168.10.101:8081/video"
+                print(f"[scan_qr] Scanning via IP Webcam ({ip_url})...")
+                qr_data = scan_qr_codes(ip_url)
+                global_qr_data = qr_data
+                if qr_data is not None:
+                    return jsonify({"status": "success", "source": "ip_webcam", "qr_data": qr_data}), 200
+                else:
+                    return jsonify({"status": "failure", "error": f"No QR code detected or stream unreachable from {ip_url}."}), 404
+
+            return jsonify({"status": "failure", "error": "No QR payload, frame, or recognized source provided."}), 400
+
+        # Option B: Stream scanning via GET (Live Webcam or IP Webcam)
+        source = request.args.get('source', '').lower()
+        requested_url = request.args.get('url')
+        camera_param = request.args.get('camera')
+
+        qr_data = None
+        used_source = "live_feed"
+
+        # 1. IP Webcam mode requested
+        if source == 'ip_webcam' or requested_url:
+            ip_stream_url = requested_url if requested_url else "http://192.168.10.101:8081/video"
+            print(f"[scan_qr] Scanning via IP Webcam: {ip_stream_url}")
+            qr_data = scan_qr_codes(ip_stream_url)
+            used_source = "ip_webcam"
+
+        # 2. Local live camera mode requested
+        elif source in ['live', 'webcam', 'local'] or camera_param is not None:
+            target_cam = 0
+            if camera_param is not None:
+                try:
+                    target_cam = int(camera_param)
+                except ValueError:
+                    target_cam = 0
+            print(f"[scan_qr] Scanning via Local Webcam index: {target_cam}")
+            qr_data = scan_qr_codes(target_cam)
+            used_source = "live_feed"
+
+        # 3. Default GET: Scan local webcam 0
+        else:
+            print("[scan_qr] Scanning default local webcam 0...")
+            try:
+                qr_data = scan_qr_codes(0)
+                used_source = "live_feed"
+            except Exception as e_local:
+                print(f"Local webcam 0 failed: {e_local}")
+                qr_data = None
+
         global_qr_data = qr_data
 
         if qr_data is not None:
-            return jsonify({"qr_data": qr_data}), 200
+            return jsonify({"status": "success", "source": used_source, "qr_data": qr_data}), 200
         else:
-            return jsonify({"error": "No QR code detected"}), 500
+            return jsonify({
+                "status": "failure",
+                "error": "No QR code detected or stream unreachable. Please align consignment QR inside camera frame."
+            }), 404
 
     except Exception as e:
-        return jsonify({"error": f"Error scanning QR code: {str(e)}"}), 500
+        print(f"Unhandled error in scan_qr: {e}")
+        return jsonify({"status": "failure", "error": f"Error scanning QR code: {str(e)}"}), 500
 
 
 @app.route('/get_qr_data', methods=['GET'])
@@ -2774,6 +2925,9 @@ def create_razorpay_order_transactions_ret_to_manu():
         if isinstance(response, str):  # Check if the response is an error message
             return jsonify({"error": response}), 400
 
+        if isinstance(response, dict) and "error" in response:
+            return jsonify(response), 400
+
         return jsonify(response), 200
 
     except Exception as e:
@@ -2836,6 +2990,9 @@ def create_razorpay_order_transactions_ret_to_whole():
 
         if isinstance(response, str):  # Check if the response is an error message
             return jsonify({"error": response}), 400
+
+        if isinstance(response, dict) and "error" in response:
+            return jsonify(response), 400
 
         return jsonify(response), 200
 

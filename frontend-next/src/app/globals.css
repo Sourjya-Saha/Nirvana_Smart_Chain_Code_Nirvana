@@ -1,0 +1,183 @@
+@import url('https://fonts.googleapis.com/css2?family=Anton&display=swap');
+@import "tailwindcss";
+@custom-variant dark (&:where(.dark, .dark *));
+
+:root {
+  --canvas: #000000;
+  --cyan-neon: #00e5ff;
+  --cyan-glow: rgba(0, 229, 255, 0.45);
+}
+
+body {
+  background-color: #000000;
+  color: #ffffff;
+  font-family: var(--font-inter), -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  letter-spacing: 0.16px;
+  -webkit-font-smoothing: antialiased;
+}
+
+.font-anton {
+  font-family: 'Anton', Impact, sans-serif;
+}
+
+.font-editorial {
+  font-family: var(--font-eb-garamond), "Times New Roman", serif;
+  font-weight: 300 !important;
+}
+
+/* Ensure clean consistent typography everywhere without monospace font */
+.font-mono,
+code,
+pre,
+kbd,
+samp {
+  font-family: inherit !important;
+}
+
+/* Electric Cyan Glow Utilities */
+.glow-cyan-box {
+  box-shadow: 0 0 35px rgba(0, 229, 255, 0.25), inset 0 0 20px rgba(0, 229, 255, 0.1);
+}
+
+.glow-cyan-btn {
+  border-color: #00e5ff;
+  box-shadow: 0 0 25px rgba(0, 229, 255, 0.6), inset 0 0 10px rgba(0, 229, 255, 0.3);
+}
+
+.glow-cyan-btn:hover {
+  box-shadow: 0 0 35px rgba(0, 229, 255, 0.9), inset 0 0 15px rgba(0, 229, 255, 0.5);
+}
+
+.text-glow-cyan {
+  text-shadow: 0 0 20px rgba(0, 229, 255, 0.8), 0 0 40px rgba(0, 229, 255, 0.4);
+}
+
+/* Organic Silk Undulation Animations */
+@keyframes silkUndulate {
+  0%, 100% {
+    transform: translateY(0px) scaleY(1);
+  }
+  50% {
+    transform: translateY(-24px) scaleY(1.06);
+  }
+}
+
+@keyframes silkDrift {
+  0%, 100% {
+    transform: translateX(0px) translateY(0px);
+  }
+  50% {
+    transform: translateX(30px) translateY(-16px);
+  }
+}
+
+.animate-silk-undulate {
+  animation: silkUndulate 12s ease-in-out infinite;
+}
+
+.animate-silk-drift {
+  animation: silkDrift 16s ease-in-out infinite;
+}
+
+/* Authentic Grunge Texture Behind & In Text */
+.grunge-textured-text {
+  background-image: url('/grunge-overlay.png');
+  background-size: 100vw 100vh;
+  background-position: center;
+  background-repeat: no-repeat;
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent !important;
+  filter: drop-shadow(0 0 16px rgba(0, 229, 255, 0.45));
+}
+
+/* Ultra-Thin Custom Scrollbars (Thin black in dark theme, light in light theme) */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: #1c1c1c transparent;
+}
+
+::-webkit-scrollbar {
+  width: 3px;
+  height: 3px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #1c1c1c;
+  border-radius: 9999px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #000000;
+}
+
+/* Light Theme Scrollbars */
+html.light, body.light, .light, [data-theme='light'] {
+  scrollbar-color: #d1d5db transparent;
+}
+
+html.light ::-webkit-scrollbar-thumb,
+body.light ::-webkit-scrollbar-thumb,
+.light ::-webkit-scrollbar-thumb,
+[data-theme='light'] ::-webkit-scrollbar-thumb {
+  background: #d1d5db;
+}
+
+html.light ::-webkit-scrollbar-thumb:hover,
+body.light ::-webkit-scrollbar-thumb:hover,
+.light ::-webkit-scrollbar-thumb:hover,
+[data-theme='light'] ::-webkit-scrollbar-thumb:hover {
+  background: #9ca3af;
+}
+
+/* Shimmer Skeleton Wave Animation */
+@keyframes shimmerWave {
+  0% {
+    transform: translateX(-100%);
+  }
+  100% {
+    transform: translateX(100%);
+  }
+}
+
+.shimmer-mask {
+  position: relative;
+  overflow: hidden;
+}
+
+.shimmer-mask::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  transform: translateX(-100%);
+  background-image: linear-gradient(
+    90deg,
+    rgba(255, 255, 255, 0) 0,
+    rgba(255, 255, 255, 0.08) 20%,
+    rgba(255, 255, 255, 0.16) 60%,
+    rgba(255, 255, 255, 0) 100%
+  );
+  animation: shimmerWave 2s cubic-bezier(0.4, 0, 0.2, 1) infinite;
+}
+
+html.light .shimmer-mask::after,
+body.light .shimmer-mask::after,
+.light .shimmer-mask::after,
+[data-theme='light'] .shimmer-mask::after {
+  background-image: linear-gradient(
+    90deg,
+    rgba(255, 255, 255, 0) 0,
+    rgba(255, 255, 255, 0.5) 20%,
+    rgba(255, 255, 255, 0.8) 60%,
+    rgba(255, 255, 255, 0) 100%
+  );
+}
+
+
