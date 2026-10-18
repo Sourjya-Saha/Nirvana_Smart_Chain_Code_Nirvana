@@ -43,7 +43,7 @@ const GooglePlacesAutocomplete = () => {
 
     // Load the Google Maps script dynamically
     const googleMapsScript = document.createElement("script");
-    googleMapsScript.src = `https://maps.googleapis.com/maps/api/js?key=AIzaSyCKMi4KBlb1RmR_E3AbguOPL2YKjfaCvn4&libraries=places&callback=initMap`;
+    googleMapsScript.src = `https://maps.googleapis.com/maps/api/js?key=AIzaSyDrsN2GDcDeIXFgAnx25qLeOyrK5h94A0I&libraries=places&callback=initMap`;
     googleMapsScript.async = true;
     googleMapsScript.defer = true;
     window.initMap = initMap;

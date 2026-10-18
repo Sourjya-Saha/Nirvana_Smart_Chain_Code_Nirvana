@@ -15,18 +15,27 @@ export default function RetailerLayout({
   actions,
   children,
 }) {
-  const { userId, userName, logout, isReady } = useAuth();
+  const { userId, userName, userType, logout, isReady } = useAuth();
   const { theme } = useTheme();
   const isLight = theme === "light";
   const router = useRouter();
   const pathname = usePathname();
 
-  // Redirect if not logged in
+  // Redirect if not logged in or role mismatch
   useEffect(() => {
-    if (isReady && !userId) {
-      router.push("/auth/login/retailer");
+    if (isReady) {
+      if (!userId) {
+        router.push("/auth/login/retailer");
+      } else if (userType && userType.toLowerCase() !== "retailer") {
+        const validRoles = ["manufacturer", "wholesaler", "distributor"];
+        if (validRoles.includes(userType.toLowerCase())) {
+          router.push(`/${userType.toLowerCase()}/dashboard`);
+        } else {
+          router.push("/auth/login/retailer");
+        }
+      }
     }
-  }, [isReady, userId, router]);
+  }, [isReady, userId, userType, router]);
 
   // Instant 1-Click Sign Out (Identical to TopBar process)
   const handleInstantSignOut = (e) => {

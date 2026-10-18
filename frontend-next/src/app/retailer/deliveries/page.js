@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useEffect, useMemo } from "react";
+import { useRouter } from "next/navigation";
 import RetailerLayout from "@/components/RetailerLayout";
 import TablePagination from "@/components/retailer/TablePagination";
 import { TableSkeletonRows, ShipmentsPageSkeleton } from "@/components/ui/Skeleton";
@@ -29,6 +30,7 @@ import {
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:5000";
 
 export default function RetailerDeliveriesPage() {
+  const router = useRouter();
   const { userId } = useAuth();
   const { theme } = useTheme();
   const isLight = theme === "light";
@@ -207,41 +209,89 @@ export default function RetailerDeliveriesPage() {
     }
   };
 
+  const isAddressValid = (addr) => {
+    if (!addr) return false;
+    const cleaned = addr.trim().toLowerCase();
+    if (cleaned === "" || cleaned === "n/a" || cleaned === "null" || cleaned === "undefined") return false;
+    if (cleaned === "0x0000000000000000000000000000000000000000") return false;
+    if (cleaned.replace(/^0x/, "").replace(/0/g, "") === "") return false;
+    return true;
+  };
+
   const truncateAddress = (addr) => {
-    if (!addr || addr.length < 12) return addr || "0x000...000";
+    if (!isAddressValid(addr)) return "N/A";
+    if (addr.length < 12) return addr;
     return `${addr.slice(0, 6)}...${addr.slice(-4)}`;
   };
 
-  // Live Geolocation Tracking modal handler
+  // Live Geolocation Tracking navigation handler
   const handleOpenLiveTracking = async (shipment) => {
-    setSelectedShipment(shipment);
-    setTrackingModalOpen(true);
-    setLocLoading(true);
-
     try {
       const cartId = shipment.cardId;
       const mAddr = (shipment.receiverAddressM || "").trim();
       const wAddr = (shipment.receiverAddressW || "").trim();
       const rAddr = (shipment.receiverAddressR || "").trim();
 
-      const response = await fetch(`${API_BASE}/get_lats_longs?cart_id=${cartId}&manufacturer_address=${mAddr}&wholesaler_address=${wAddr}&retailer_address=${rAddr}`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
+      if (!cartId || (!mAddr && !wAddr && !rAddr)) {
+        showToast("Insufficient address data for live tracking.", "warning");
+        return;
+      }
+
+      showToast(`Initiating telematics for Cart #${cartId}...`, "info");
+
+      // Query coordinates to pass as props / query params
+      let startLoc = "";
+      let checkLoc = "";
+      let destLoc = "";
+
+      try {
+        const response = await fetch(
+          `${API_BASE}/get_lats_longs?cart_id=${encodeURIComponent(cartId)}&manufacturer_address=${encodeURIComponent(mAddr)}&wholesaler_address=${encodeURIComponent(wAddr)}&retailer_address=${encodeURIComponent(rAddr)}`,
+          {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+          }
+        );
+
+        if (response.ok) {
+          const locData = await response.json();
+          const formatCoords = (location, latKey, longKey) => {
+            if (location && location[latKey] && location[longKey]) {
+              const lat = parseFloat(location[latKey]);
+              const lng = parseFloat(location[longKey]);
+              if (!isNaN(lat) && !isNaN(lng)) {
+                return `${lat}, ${lng}`;
+              }
+            }
+            return "";
+          };
+
+          startLoc = formatCoords(locData.manufacturer, "manufacturer_lat", "manufacturer_long");
+          checkLoc = formatCoords(locData.wholesaler, "wholesaler_lat", "wholesaler_long");
+          destLoc = formatCoords(locData.retailer, "retailer_lat", "retailer_long");
+        }
+      } catch (locErr) {
+        console.warn("Pre-fetch coordinates warning:", locErr);
+      }
+
+      // Redirect to /geolocation with all values passed as query parameters
+      const params = new URLSearchParams({
+        cartId: cartId,
+        userId: userId || "",
+        userRole: "retailer",
       });
 
-      if (response.ok) {
-        const data = await response.json();
-        setLocationData(data);
-      } else {
-        setLocationData(null);
-        showToast("No live geolocation coordinates returned by the API for this shipment.", "error");
-      }
+      if (isAddressValid(mAddr)) params.set("mAddr", mAddr);
+      if (isAddressValid(wAddr)) params.set("wAddr", wAddr);
+      if (isAddressValid(rAddr)) params.set("rAddr", rAddr);
+      if (startLoc && isAddressValid(mAddr)) params.set("startLocation", startLoc);
+      if (checkLoc && isAddressValid(wAddr)) params.set("checkpoint", checkLoc);
+      if (destLoc && isAddressValid(rAddr)) params.set("destination", destLoc);
+
+      router.push(`/Geolocation?${params.toString()}`);
     } catch (e) {
-      console.error("Location query error:", e);
-      setLocationData(null);
-      showToast("Unable to connect to geolocation tracking endpoint.", "error");
-    } finally {
-      setLocLoading(false);
+      console.error("Live tracking redirect error:", e);
+      router.push(`/Geolocation?cartId=${encodeURIComponent(shipment.cardId)}&userId=${encodeURIComponent(userId || "")}&userRole=retailer`);
     }
   };
 
@@ -552,38 +602,46 @@ export default function RetailerDeliveriesPage() {
 
                         {/* Manufacturer Address */}
                         <td className="py-4 px-3">
-                          <div className="flex items-center gap-1.5">
-                            <span>{truncateAddress(shipment.receiverAddressM)}</span>
-                            <button
-                              onClick={() => copyToClipboard(shipment.receiverAddressM, `m-${shipment.cardId}`)}
-                              className="text-neutral-400 hover:text-white cursor-pointer"
-                              title="Copy manufacturer address"
-                            >
-                              {copiedAddress === `m-${shipment.cardId}` ? (
-                                <Check className="w-3.5 h-3.5" />
-                              ) : (
-                                <Copy className="w-3.5 h-3.5" />
-                              )}
-                            </button>
-                          </div>
+                          {isAddressValid(shipment.receiverAddressM) ? (
+                            <div className="flex items-center gap-1.5">
+                              <span>{truncateAddress(shipment.receiverAddressM)}</span>
+                              <button
+                                onClick={() => copyToClipboard(shipment.receiverAddressM, `m-${shipment.cardId}`)}
+                                className="text-neutral-400 hover:text-white cursor-pointer"
+                                title="Copy manufacturer address"
+                              >
+                                {copiedAddress === `m-${shipment.cardId}` ? (
+                                  <Check className="w-3.5 h-3.5" />
+                                ) : (
+                                  <Copy className="w-3.5 h-3.5" />
+                                )}
+                              </button>
+                            </div>
+                          ) : (
+                            <span className="text-neutral-500 font-mono text-xs">N/A</span>
+                          )}
                         </td>
 
                         {/* Wholesaler Hub Address */}
                         <td className="py-4 px-3">
-                          <div className="flex items-center gap-1.5">
-                            <span>{truncateAddress(shipment.receiverAddressW)}</span>
-                            <button
-                              onClick={() => copyToClipboard(shipment.receiverAddressW, `w-${shipment.cardId}`)}
-                              className="text-neutral-400 hover:text-white cursor-pointer"
-                              title="Copy wholesaler address"
-                            >
-                              {copiedAddress === `w-${shipment.cardId}` ? (
-                                <Check className="w-3.5 h-3.5" />
-                              ) : (
-                                <Copy className="w-3.5 h-3.5" />
-                              )}
-                            </button>
-                          </div>
+                          {isAddressValid(shipment.receiverAddressW) ? (
+                            <div className="flex items-center gap-1.5">
+                              <span>{truncateAddress(shipment.receiverAddressW)}</span>
+                              <button
+                                onClick={() => copyToClipboard(shipment.receiverAddressW, `w-${shipment.cardId}`)}
+                                className="text-neutral-400 hover:text-white cursor-pointer"
+                                title="Copy wholesaler address"
+                              >
+                                {copiedAddress === `w-${shipment.cardId}` ? (
+                                  <Check className="w-3.5 h-3.5" />
+                                ) : (
+                                  <Copy className="w-3.5 h-3.5" />
+                                )}
+                              </button>
+                            </div>
+                          ) : (
+                            <span className="text-neutral-500 font-mono text-xs">N/A</span>
+                          )}
                         </td>
 
                         {/* Status Badge */}

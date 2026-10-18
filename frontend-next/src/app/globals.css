@@ -170,6 +170,7 @@ body.light ::-webkit-scrollbar-thumb:hover,
 html.light .shimmer-mask::after,
 body.light .shimmer-mask::after,
 .light .shimmer-mask::after,
+html:not(.dark) .shimmer-mask::after,
 [data-theme='light'] .shimmer-mask::after {
   background-image: linear-gradient(
     90deg,
@@ -179,5 +180,53 @@ body.light .shimmer-mask::after,
     rgba(255, 255, 255, 0) 100%
   );
 }
+
+/* ========================================================
+   Google Maps Custom InfoWindow Theme & Anti-Scroll Styling
+   (White card popup for high-contrast visibility & no scroll arrows)
+   ======================================================== */
+.gm-style .gm-style-iw-c {
+  background-color: #ffffff !important;
+  border: 1px solid rgba(0, 0, 0, 0.12) !important;
+  border-radius: 16px !important;
+  box-shadow: 0 20px 40px -8px rgba(0, 0, 0, 0.35), 0 0 0 1px rgba(0, 0, 0, 0.05) !important;
+  padding: 12px 14px !important;
+  max-width: 310px !important;
+  box-sizing: border-box !important;
+}
+
+.gm-style .gm-style-iw-d {
+  overflow: hidden !important;
+  max-height: none !important;
+  padding: 0 !important;
+}
+
+/* Eliminate Google Maps internal scroll indicators/arrows completely */
+.gm-style .gm-style-iw-d::-webkit-scrollbar {
+  display: none !important;
+}
+
+/* InfoWindow pointer tail / stem */
+.gm-style .gm-style-iw-tc::after,
+.gm-style .gm-style-iw-t::after {
+  background-color: #ffffff !important;
+  border-left: 1px solid rgba(0, 0, 0, 0.12) !important;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.12) !important;
+  box-shadow: none !important;
+}
+
+/* InfoWindow Close Button */
+.gm-style .gm-ui-hover-effect {
+  filter: none !important;
+  top: 6px !important;
+  right: 6px !important;
+  opacity: 0.65 !important;
+  border-radius: 9999px !important;
+  transition: opacity 0.15s ease !important;
+}
+.gm-style .gm-ui-hover-effect:hover {
+  opacity: 1 !important;
+}
+
 
 

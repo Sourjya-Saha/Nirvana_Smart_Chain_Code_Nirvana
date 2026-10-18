@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useEffect, useMemo, useCallback, useRef } from "react";
+import { useRouter } from "next/navigation";
 import RetailerLayout from "@/components/RetailerLayout";
 import { useAuth } from "@/context/AuthContext";
 import { useTheme } from "@/context/ThemeContext";
@@ -34,11 +35,13 @@ import {
   Radio,
   Globe,
   Edit3,
+  Navigation,
 } from "lucide-react";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:5000";
 
 export default function RetailShipmentPage() {
+  const router = useRouter();
   const { userId } = useAuth();
   const { theme } = useTheme();
   const isLight = theme === "light";
@@ -95,6 +98,7 @@ export default function RetailShipmentPage() {
   const [itemsPerPage] = useState(5);
   const [searchQuery, setSearchQuery] = useState("");
   const [copiedKey, setCopiedKey] = useState(null);
+  const [trackingLoadingId, setTrackingLoadingId] = useState(null);
 
   // Notifications
   const [errorMessage, setErrorMessage] = useState("");
@@ -1005,6 +1009,62 @@ export default function RetailShipmentPage() {
     }
   };
 
+  // Live GPS Tracking Handler
+  const handleLiveTracking = async (tx) => {
+    const cardId = tx.cardId;
+    setTrackingLoadingId(cardId);
+    const mAddr = tx.receiverAddressM || "";
+    const wAddr = tx.receiverAddressW || "";
+    const rAddr = tx.receiverAddressR || "";
+
+    let startCoord = "";
+    let checkpointCoord = "";
+    let destCoord = "";
+
+    try {
+      const response = await axios.post(`${API_BASE}/get_lats_longs`, null, {
+        params: {
+          cart_id: cardId,
+          manufacturer_address: mAddr,
+          wholesaler_address: wAddr,
+          retailer_address: rAddr,
+        },
+      });
+
+      if (response.status === 200 && response.data) {
+        const d = response.data;
+        if (d.manufacturer?.manufacturer_lat && d.manufacturer?.manufacturer_long) {
+          startCoord = `${d.manufacturer.manufacturer_lat}, ${d.manufacturer.manufacturer_long}`;
+        }
+        if (d.wholesaler?.wholesaler_lat && d.wholesaler?.wholesaler_long) {
+          checkpointCoord = `${d.wholesaler.wholesaler_lat}, ${d.wholesaler.wholesaler_long}`;
+        }
+        if (d.retailer?.retailer_lat && d.retailer?.retailer_long) {
+          destCoord = `${d.retailer.retailer_lat}, ${d.retailer.retailer_long}`;
+        }
+      }
+    } catch (e) {
+      console.warn("Could not pre-fetch exact lat/long coords:", e);
+    } finally {
+      setTrackingLoadingId(null);
+    }
+
+    const params = new URLSearchParams({
+      cartId: cardId,
+      userId: userId || "",
+      userRole: "retailer",
+    });
+
+    if (mAddr) params.set("mAddr", mAddr);
+    if (wAddr) params.set("wAddr", wAddr);
+    if (rAddr) params.set("rAddr", rAddr);
+    if (startCoord) params.set("start", startCoord);
+    if (checkpointCoord) params.set("checkpoint", checkpointCoord);
+    if (destCoord) params.set("dest", destCoord);
+
+    router.push(`/Geolocation?${params.toString()}`);
+  };
+
   // Filtered & Paginated Transactions
   const filteredTransactions = useMemo(() => {
     if (!searchQuery.trim()) return allTransactions;
@@ -1157,7 +1217,7 @@ export default function RetailShipmentPage() {
           {/* Header Row */}
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-5 border-b border-neutral-200 dark:border-neutral-800/80">
             <div className="flex items-center gap-3.5">
-              <div className="w-10 h-10 rounded-full overflow-hidden shrink-0 border border-neutral-200 dark:border-neutral-700/80 bg-neutral-100 dark:bg-neutral-800 flex items-center justify-center shadow-sm">
+              <div className="w-10 h-10 rounded-full overflow-hidden shrink-0 bg-black border border-black flex items-center justify-center shadow-sm">
                 <img
                   src="/nsc_logo.png"
                   alt="NSC Token"
@@ -2056,13 +2116,14 @@ export default function RetailShipmentPage() {
                   <th className="py-3 px-4">Retailer</th>
                   <th className="py-3 px-4">Date</th>
                   <th className="py-3 px-4">Manufacturer</th>
-                  <th className="py-3 px-4 text-right">Status</th>
+                  <th className="py-3 px-4">Status</th>
+                  <th className="py-3 px-4 text-right">Actions</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-neutral-200 dark:divide-neutral-800/60 font-sans">
                 {currentTransactions.length === 0 ? (
                   <tr>
-                    <td colSpan={6} className="text-center py-12 text-neutral-400 text-xs">
+                    <td colSpan={7} className="text-center py-12 text-neutral-400 text-xs">
                       No matching blockchain transactions recorded for this wallet.
                     </td>
                   </tr>
@@ -2095,7 +2156,7 @@ export default function RetailShipmentPage() {
                         <td className="py-3.5 px-4 font-mono text-neutral-600 dark:text-neutral-300">
                           <span title={tx.receiverAddressM}>{truncateAddress(tx.receiverAddressM)}</span>
                         </td>
-                        <td className="py-3.5 px-4 text-right">
+                        <td className="py-3.5 px-4">
                           <span
                             className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
                               isValidated || isDelivered
@@ -2107,6 +2168,25 @@ export default function RetailShipmentPage() {
                           >
                             {tx.status || "Pending"}
                           </span>
+                        </td>
+                        <td className="py-3.5 px-4 text-right">
+                          <button
+                            type="button"
+                            onClick={() => handleLiveTracking(tx)}
+                            disabled={trackingLoadingId === tx.cardId}
+                            className={`h-8 px-3.5 rounded-full text-xs font-semibold inline-flex items-center gap-1.5 transition-all shadow-sm cursor-pointer ${
+                              isLight
+                                ? "bg-neutral-900 hover:bg-black text-white"
+                                : "bg-white hover:bg-neutral-200 text-black"
+                            } ${trackingLoadingId === tx.cardId ? "opacity-60 cursor-not-allowed" : ""}`}
+                          >
+                            {trackingLoadingId === tx.cardId ? (
+                              <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                            ) : (
+                              <Navigation className="w-3.5 h-3.5" />
+                            )}
+                            <span>Live Tracking</span>
+                          </button>
                         </td>
                       </tr>
                     );

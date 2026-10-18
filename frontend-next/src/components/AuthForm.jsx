@@ -80,10 +80,20 @@ export default function AuthForm({ authType, userType, redirectPath }) {
 
       if (response.ok) {
         if (authType === "signup") {
-          router.push(`/login/${userType}`);
+          router.push(`/auth/login/${userType}`);
         } else {
+          // Double verify that the authenticated account role matches the portal role
+          const returnedRole = data.user_type;
+          if (returnedRole && returnedRole.toLowerCase() !== userType.toLowerCase()) {
+            const actualRole = returnedRole.charAt(0).toUpperCase() + returnedRole.slice(1);
+            const portalRole = userType.charAt(0).toUpperCase() + userType.slice(1);
+            setError(
+              `Access Denied: Account '${username}' is registered as a ${actualRole}, not a ${portalRole}. Please sign in via the ${actualRole} portal.`
+            );
+            return;
+          }
           const finalId = data.unique_user_id || username;
-          login(finalId, userType, username);
+          login(finalId, data.user_type || userType, username);
           router.push(redirectPath);
         }
       } else {

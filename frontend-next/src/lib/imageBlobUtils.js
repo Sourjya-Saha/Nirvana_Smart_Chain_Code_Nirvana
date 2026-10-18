@@ -69,6 +69,17 @@ export function getProductImageUrl(img) {
     if (img.startsWith("blob:") || img.startsWith("http://") || img.startsWith("https://")) {
       return img;
     }
+    // Support static paths (/images/...) or backend relative paths (uploads/...)
+    if (
+      img.startsWith("/") ||
+      (!img.startsWith("data:") &&
+        !img.includes(";base64,") &&
+        /\.(png|jpe?g|webp|gif|svg)$/i.test(img))
+    ) {
+      if (img.startsWith("/")) return img;
+      const apiBase = process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:5000";
+      return `${apiBase}/${img.replace(/\\/g, "/").replace(/^\/+/, "")}`;
+    }
     return base64ToBlobUrl(img);
   }
   return null;

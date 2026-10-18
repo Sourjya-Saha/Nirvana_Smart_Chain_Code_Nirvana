@@ -67,7 +67,7 @@ const DeviationTracker = ({ cartId }) => {
       if (!locationCache[startKey]) {
         try {
           const response = await fetch(
-            `https://maps.googleapis.com/maps/api/geocode/json?latlng=${start.location.lat},${start.location.lng}&key=AIzaSyCKMi4KBlb1RmR_E3AbguOPL2YKjfaCvn4`
+            `https://maps.googleapis.com/maps/api/geocode/json?latlng=${start.location.lat},${start.location.lng}&key=AIzaSyDrsN2GDcDeIXFgAnx25qLeOyrK5h94A0I`
           );
           const data = await response.json();
           if (data.results[0]) {
@@ -81,7 +81,7 @@ const DeviationTracker = ({ cartId }) => {
       if (!locationCache[endKey]) {
         try {
           const response = await fetch(
-            `https://maps.googleapis.com/maps/api/geocode/json?latlng=${end.location.lat},${end.location.lng}&key=AIzaSyCKMi4KBlb1RmR_E3AbguOPL2YKjfaCvn4`
+            `https://maps.googleapis.com/maps/api/geocode/json?latlng=${end.location.lat},${end.location.lng}&key=AIzaSyDrsN2GDcDeIXFgAnx25qLeOyrK5h94A0I`
           );
           const data = await response.json();
           if (data.results[0]) {

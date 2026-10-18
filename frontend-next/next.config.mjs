@@ -11,6 +11,14 @@ const nextConfig = {
       },
     },
   },
+  async rewrites() {
+    return [
+      {
+        source: "/geolocation",
+        destination: "/Geolocation",
+      },
+    ];
+  },
   async redirects() {
     return [
       {

@@ -48,7 +48,7 @@ const DriverNotificationsScreen = () => {
         return;
       }
 
-      const response = await axios.post('http://192.168.10.104:5000/fetch_notifications', {
+      const response = await axios.post('http://192.168.10.101:5000/fetch_notifications', {
         driver_id: driverId
       });
 

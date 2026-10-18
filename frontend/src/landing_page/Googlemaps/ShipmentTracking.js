@@ -10,7 +10,7 @@ import DeviationTracker from './DeviationTracker';
 // Constants
 const SOCKET_SERVER = "http://localhost:8000";
 const API_URL = "  http://127.0.0.1:8000/api";
-const GOOGLE_MAPS_API_KEY = 'AIzaSyCKMi4KBlb1RmR_E3AbguOPL2YKjfaCvn4';
+const GOOGLE_MAPS_API_KEY = 'AIzaSyDrsN2GDcDeIXFgAnx25qLeOyrK5h94A0I';
 const DEFAULT_COORDINATES = {
   center: { lat: 22.5726, lng: 88.3639 },
 };

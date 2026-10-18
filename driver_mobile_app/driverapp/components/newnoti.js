@@ -35,7 +35,7 @@ const DriverNotificationsScreen = () => {
         return;
       }
 
-      const response = await axios.post('http://192.168.10.104:5000/fetch_notifications', {
+      const response = await axios.post('http://192.168.10.101:5000/fetch_notifications', {
         driver_id: driverId
       });
 
@@ -58,7 +58,7 @@ const DriverNotificationsScreen = () => {
     try {
       // Connect with a unique identifier
       const uniqueId = `${driverId}-${cartId}-${Date.now()}`;
-      const socket = io('http://192.168.10.104:8000', {
+      const socket = io('http://192.168.10.101:8000', {
         query: {
           user_id: driverId,
           cart_id: cartId,
@@ -107,7 +107,7 @@ const DriverNotificationsScreen = () => {
   
       // Verify access
       try {
-        const response = await axios.post('http://192.168.10.104:8000/api/shipment/verify-access', {
+        const response = await axios.post('http://192.168.10.101:8000/api/shipment/verify-access', {
           cart_id: cartId,
           user_id: driverId,
           role: 'driver'

@@ -58,7 +58,7 @@ const ChatComponent = ({ userId, cartId, role, onClose }: any) => {
   useEffect(() => {
     console.log('Initializing socket with:', { userId, cartId, role });
     
-    const newSocket = io('http://192.168.10.104:8000', {
+    const newSocket = io('http://192.168.10.101:8000', {
       query: { user_id: userId, cart_id: cartId, role },
       transports: ['websocket']
     });

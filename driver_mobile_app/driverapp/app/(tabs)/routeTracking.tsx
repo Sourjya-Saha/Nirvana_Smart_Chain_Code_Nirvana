@@ -26,7 +26,7 @@ import io from 'socket.io-client';
 import ChatComponent from './ChatComponent';
 
 const { width, height } = Dimensions.get('window');
-const GOOGLE_MAPS_API_KEY = 'AIzaSyCKMi4KBlb1RmR_E3AbguOPL2YKjfaCvn4';
+const GOOGLE_MAPS_API_KEY = 'AIzaSyDrsN2GDcDeIXFgAnx25qLeOyrK5h94A0I';
 
 interface NavigationState {
   isActive: boolean;
@@ -198,7 +198,7 @@ const TrackingScreen = () => {
       role: 'driver'
     });
 
-    const newSocket = io('http://192.168.10.104:8000', {
+    const newSocket = io('http://192.168.10.101:8000', {
       query: {
         user_id: driverId,
         cart_id: cartId,
@@ -402,8 +402,8 @@ const TrackingScreen = () => {
       }
 
       const googleApiKey = Platform.select({
-        ios: 'AIzaSyCKMi4KBlb1RmR_E3AbguOPL2YKjfaCvn4',
-        android: 'AIzaSyCKMi4KBlb1RmR_E3AbguOPL2YKjfaCvn4'
+        ios: 'AIzaSyDrsN2GDcDeIXFgAnx25qLeOyrK5h94A0I',
+        android: 'AIzaSyDrsN2GDcDeIXFgAnx25qLeOyrK5h94A0I'
       });
 
       let routeResponses;
@@ -862,7 +862,7 @@ const TrackingScreen = () => {
             try {
               setIsCompletingTransaction(true);
 
-              const response = await fetch('http://192.168.10.104:8000/update_route_status', {
+              const response = await fetch('http://192.168.10.101:8000/update_route_status', {
                 method: 'POST',
                 headers: {
                   'Content-Type': 'application/json',

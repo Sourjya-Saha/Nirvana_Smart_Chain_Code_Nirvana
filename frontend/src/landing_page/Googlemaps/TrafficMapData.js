@@ -99,7 +99,7 @@ const TrafficMapData = () => {
   const [destination, setDestination] = useState(null);
 
   const { isLoaded, loadError } = useLoadScript({
-    googleMapsApiKey: "AIzaSyCKMi4KBlb1RmR_E3AbguOPL2YKjfaCvn4",
+    googleMapsApiKey: "AIzaSyDrsN2GDcDeIXFgAnx25qLeOyrK5h94A0I",
     libraries,
     version: "weekly"
   });

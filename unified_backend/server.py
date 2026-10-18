@@ -516,20 +516,25 @@ def confirm_order_payment_website():
 
 @app.route('/login', methods=['POST'])
 def login_route():
-    data = request.json
+    data = request.json or {}
 
     username = data.get('username')
     password = data.get('password')
+    user_type = data.get('user_type')
 
     # Input validation
     if not username or not password:
         return jsonify({"error": "Missing required fields"}), 400
 
     connection = get_db()
-    result = log_in.log_in(connection, username, password)
+    result = log_in.log_in(connection, username, password, user_type)
 
     if result['status'] == 'success':
-        return jsonify({"message": "Login successful", "unique_user_id": result['unique_user_id']}), 200
+        return jsonify({
+            "message": "Login successful",
+            "unique_user_id": result['unique_user_id'],
+            "user_type": result.get('user_type')
+        }), 200
     else:
         return jsonify({"error": result['message']}), 401
 

@@ -5,8 +5,7 @@ import DistributorTopNav from "@/components/DistributorTopNav";
 import { useAuth } from "@/context/AuthContext";
 import { useTheme } from "@/context/ThemeContext";
 import { useRouter } from "next/navigation";
-import Link from "next/link";
-import { ArrowLeft, LogOut } from "lucide-react";
+import { LogOut } from "lucide-react";
 
 export default function DistributorLayout({
   title,
@@ -14,16 +13,25 @@ export default function DistributorLayout({
   badge = "Distributor Logistics",
   children,
 }) {
-  const { userId, logout, isReady } = useAuth();
+  const { userId, userName, userType, logout, isReady } = useAuth();
   const { theme } = useTheme();
   const isLight = theme === "light";
   const router = useRouter();
 
   useEffect(() => {
-    if (isReady && !userId) {
-      router.push("/auth/login/distributor");
+    if (isReady) {
+      if (!userId) {
+        router.push("/auth/login/distributor");
+      } else if (userType && userType.toLowerCase() !== "distributor") {
+        const validRoles = ["manufacturer", "wholesaler", "retailer"];
+        if (validRoles.includes(userType.toLowerCase())) {
+          router.push(`/${userType.toLowerCase()}/dashboard`);
+        } else {
+          router.push("/auth/login/distributor");
+        }
+      }
     }
-  }, [isReady, userId, router]);
+  }, [isReady, userId, userType, router]);
 
   const handleInstantSignOut = (e) => {
     if (e) {
@@ -63,13 +71,23 @@ export default function DistributorLayout({
           <div className="space-y-2">
             <div className="flex items-center gap-3 flex-wrap">
               <span
-                className={`text-[12px] font-medium tracking-normal px-3 py-1 rounded-full ${
+                className={`text-[12px] font-medium tracking-normal px-3.5 py-1 rounded-full transition-all border ${
                   isLight
-                    ? "bg-emerald-50 text-emerald-800 border-emerald-200"
-                    : "bg-[#0d1c16] text-emerald-300 border-emerald-700/60"
-                } border`}
+                    ? "bg-neutral-100 text-neutral-800 border-neutral-200/80"
+                    : "bg-[#14151a] text-neutral-200 border border-neutral-800"
+                }`}
               >
-                {badge}
+                <span className="font-semibold text-neutral-900 dark:text-white">
+                  {userName || "Distribution Center"}
+                </span>
+                {badge && (
+                  <>
+                    <span className="mx-1.5 text-neutral-400">&bull;</span>
+                    <span className="text-neutral-500 dark:text-neutral-400">
+                      {badge}
+                    </span>
+                  </>
+                )}
               </span>
             </div>
             <h1
@@ -91,17 +109,6 @@ export default function DistributorLayout({
           </div>
 
           <div className="flex items-center gap-3 self-start md:self-auto shrink-0">
-            <Link
-              href="/auth/login"
-              className={`h-9 sm:h-10 px-4 sm:px-5 rounded-full border text-xs sm:text-[14px] font-medium flex items-center gap-1.5 transition-all ${
-                isLight
-                  ? "border-neutral-300 hover:border-black text-neutral-800 bg-transparent"
-                  : "border-neutral-700 hover:border-neutral-400 text-neutral-300 hover:text-white bg-transparent"
-              }`}
-            >
-              <ArrowLeft className="w-3.5 h-3.5" />
-              Portals
-            </Link>
             <button
               type="button"
               onClick={handleInstantSignOut}

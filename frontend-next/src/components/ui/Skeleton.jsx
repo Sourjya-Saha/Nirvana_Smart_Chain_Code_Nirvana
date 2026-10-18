@@ -2,16 +2,33 @@
 
 import React from "react";
 import { cn } from "@/lib/utils";
+import { useTheme } from "@/context/ThemeContext";
+
+/**
+ * Hook to dynamically resolve theme state (falling back to ThemeContext if isLight prop is omitted)
+ */
+export function useIsLight(propIsLight) {
+  try {
+    const { theme } = useTheme();
+    if (propIsLight !== undefined && propIsLight !== null) {
+      return Boolean(propIsLight);
+    }
+    return theme === "light";
+  } catch {
+    return Boolean(propIsLight);
+  }
+}
 
 /**
  * Base Shimmer Skeleton Element
  */
-export function Skeleton({ className, isLight = false, ...props }) {
+export function Skeleton({ className, isLight: isLightProp, ...props }) {
+  const isLight = useIsLight(isLightProp);
   return (
     <div
       className={cn(
         "shimmer-mask rounded-md",
-        isLight ? "bg-neutral-200/80" : "bg-neutral-800/70",
+        isLight ? "bg-neutral-200/90" : "bg-neutral-800/70",
         className
       )}
       {...props}
@@ -22,7 +39,8 @@ export function Skeleton({ className, isLight = false, ...props }) {
 /**
  * Metric / Stat Card Skeleton
  */
-export function StatCardSkeleton({ isLight = false, className }) {
+export function StatCardSkeleton({ isLight: isLightProp, className }) {
+  const isLight = useIsLight(isLightProp);
   return (
     <div
       className={cn(
@@ -49,7 +67,8 @@ export function StatCardSkeleton({ isLight = false, className }) {
 /**
  * Table Rows Skeleton (renders <tr> elements for inside <tbody>)
  */
-export function TableSkeletonRows({ columns = 6, rows = 6, isLight = false }) {
+export function TableSkeletonRows({ columns = 6, rows = 6, isLight: isLightProp }) {
+  const isLight = useIsLight(isLightProp);
   const widths = ["w-32", "w-24", "w-28", "w-16", "w-20", "w-16"];
 
   return (
@@ -97,9 +116,10 @@ export function TableSkeletonRows({ columns = 6, rows = 6, isLight = false }) {
 export function TableCardSkeleton({
   columns = 6,
   rows = 6,
-  isLight = false,
+  isLight: isLightProp,
   headers = ["Item / Drug Name", "Category", "Batch ID", "Quantity", "Price", "Action"],
 }) {
+  const isLight = useIsLight(isLightProp);
   return (
     <div
       className={`border rounded-2xl p-5 sm:p-6 space-y-5 ${
@@ -132,7 +152,7 @@ export function TableCardSkeleton({
               }`}
             >
               {headers.slice(0, columns).map((h, i) => (
-                <th key={i} className="py-3 px-4 font-medium uppercase tracking-wider text-[11px]">
+                <th key={i} className="py-3 px-4 font-medium text-xs">
                   <Skeleton isLight={isLight} className="h-3 w-16 rounded" />
                 </th>
               ))}
@@ -161,7 +181,8 @@ export function TableCardSkeleton({
 /**
  * Daily Sales Activity Chart Card Skeleton
  */
-export function DailySalesChartSkeleton({ isLight = false }) {
+export function DailySalesChartSkeleton({ isLight: isLightProp }) {
+  const isLight = useIsLight(isLightProp);
   // Simulated bar heights
   const barHeights = [25, 40, 60, 30, 75, 45, 90, 65, 35, 80, 50, 70, 40, 85, 95, 60, 30, 45, 70, 55];
 
@@ -224,10 +245,8 @@ export function DailySalesChartSkeleton({ isLight = false }) {
 /**
  * Warehouse / Inventory Rack Card Skeleton
  */
-/**
- * Warehouse / Inventory Rack Card Skeleton
- */
-export function WarehouseCardSkeleton({ isLight = false }) {
+export function WarehouseCardSkeleton({ isLight: isLightProp }) {
+  const isLight = useIsLight(isLightProp);
   return (
     <div
       className={`border rounded-2xl p-4 sm:p-5 space-y-3.5 transition-all ${
@@ -269,7 +288,8 @@ export function WarehouseCardSkeleton({ isLight = false }) {
 /**
  * Dedicated Warehouse Page Skeleton (Matches exact UI of /retailer/warehouse)
  */
-export function WarehousePageSkeleton({ isLight = false }) {
+export function WarehousePageSkeleton({ isLight: isLightProp }) {
+  const isLight = useIsLight(isLightProp);
   return (
     <div className="space-y-10 pb-16 animate-in fade-in duration-300">
       {/* 1. Top Command & Search Bar */}
@@ -393,14 +413,16 @@ export function WarehousePageSkeleton({ isLight = false }) {
 /**
  * Backward compatibility alias for WarehouseSkeletonGrid
  */
-export function WarehouseSkeletonGrid({ isLight = false }) {
+export function WarehouseSkeletonGrid({ isLight: isLightProp }) {
+  const isLight = useIsLight(isLightProp);
   return <WarehousePageSkeleton isLight={isLight} />;
 }
 
 /**
  * Dedicated Products Page Skeleton (Matches exact UI of /retailer/products)
  */
-export function ProductsPageSkeleton({ isLight = false }) {
+export function ProductsPageSkeleton({ isLight: isLightProp }) {
+  const isLight = useIsLight(isLightProp);
   return (
     <div className="space-y-8 animate-in fade-in duration-300">
       {/* 3 Metric Cards Row */}
@@ -458,7 +480,7 @@ export function ProductsPageSkeleton({ isLight = false }) {
                   "Status",
                   "Actions",
                 ].map((_, i) => (
-                  <th key={i} className="py-3 px-3 font-semibold uppercase text-[10px]">
+                  <th key={i} className="py-3 px-3 font-semibold text-xs">
                     <Skeleton isLight={isLight} className="h-3 w-12 rounded" />
                   </th>
                 ))}
@@ -488,7 +510,8 @@ export function ProductsPageSkeleton({ isLight = false }) {
 /**
  * Dedicated Orders Page Skeleton (Matches exact UI of /retailer/orders)
  */
-export function OrdersPageSkeleton({ isLight = false }) {
+export function OrdersPageSkeleton({ isLight: isLightProp }) {
+  const isLight = useIsLight(isLightProp);
   return (
     <div className="space-y-6 animate-in fade-in duration-300">
       {/* Top Action Bar */}
@@ -543,7 +566,7 @@ export function OrdersPageSkeleton({ isLight = false }) {
                   "Status",
                   "Actions",
                 ].map((_, i) => (
-                  <th key={i} className="py-3 px-4 font-semibold uppercase text-[10px]">
+                  <th key={i} className="py-3 px-4 font-semibold text-xs">
                     <Skeleton isLight={isLight} className="h-3 w-16 rounded" />
                   </th>
                 ))}
@@ -573,7 +596,8 @@ export function OrdersPageSkeleton({ isLight = false }) {
 /**
  * Dedicated Shipments Page Skeleton (Matches exact UI of /retailer/shipment)
  */
-export function ShipmentsPageSkeleton({ isLight = false }) {
+export function ShipmentsPageSkeleton({ isLight: isLightProp }) {
+  const isLight = useIsLight(isLightProp);
   return (
     <div className="space-y-8 animate-in fade-in duration-300">
       {/* Smart Contract Registry Header Card */}
@@ -628,7 +652,7 @@ export function ShipmentsPageSkeleton({ isLight = false }) {
                   "Status",
                   "Actions",
                 ].map((_, i) => (
-                  <th key={i} className="py-3 px-3 font-semibold uppercase text-[10px]">
+                  <th key={i} className="py-3 px-3 font-semibold text-xs">
                     <Skeleton isLight={isLight} className="h-3 w-16 rounded" />
                   </th>
                 ))}
@@ -657,7 +681,8 @@ export function ShipmentsPageSkeleton({ isLight = false }) {
 /**
  * Dedicated Transactions Page Skeleton (Matches exact UI of /retailer/transactions)
  */
-export function TransactionsPageSkeleton({ isLight = false }) {
+export function TransactionsPageSkeleton({ isLight: isLightProp }) {
+  const isLight = useIsLight(isLightProp);
   return (
     <div className="space-y-6 animate-in fade-in duration-300">
       {/* Top Search & Total Recorded Bar */}
@@ -700,7 +725,7 @@ export function TransactionsPageSkeleton({ isLight = false }) {
                   "Status",
                   "Actions",
                 ].map((_, i) => (
-                  <th key={i} className="py-3 px-3 font-semibold uppercase text-[10px]">
+                  <th key={i} className="py-3 px-3 font-semibold text-xs">
                     <Skeleton isLight={isLight} className="h-3 w-16 rounded" />
                   </th>
                 ))}
@@ -729,7 +754,8 @@ export function TransactionsPageSkeleton({ isLight = false }) {
 /**
  * Complete Retailer Dashboard Skeleton
  */
-export function RetailerDashboardSkeleton({ isLight = false }) {
+export function RetailerDashboardSkeleton({ isLight: isLightProp }) {
+  const isLight = useIsLight(isLightProp);
   return (
     <div className="space-y-8 animate-in fade-in duration-300">
       {/* Metric Cards Grid */}
@@ -815,7 +841,8 @@ export function RetailerDashboardSkeleton({ isLight = false }) {
 /**
  * Complete Retailer Details Skeleton
  */
-export function RetailerDetailsSkeleton({ isLight = false }) {
+export function RetailerDetailsSkeleton({ isLight: isLightProp }) {
+  const isLight = useIsLight(isLightProp);
   return (
     <div className="space-y-8 animate-in fade-in duration-300">
       {/* 6 Metric Cards Overview */}
@@ -882,11 +909,12 @@ export function RetailerDetailsSkeleton({ isLight = false }) {
  * Generic Table Page Skeleton (Products, Orders, Shipments, Transactions)
  */
 export function GenericTablePageSkeleton({
-  isLight = false,
+  isLight: isLightProp,
   columns = 6,
   rows = 6,
   headers,
 }) {
+  const isLight = useIsLight(isLightProp);
   return (
     <div className="space-y-8 animate-in fade-in duration-300">
       <TableCardSkeleton
@@ -902,23 +930,23 @@ export function GenericTablePageSkeleton({
 /**
  * Stakeholder Dashboard Generic Skeleton
  */
-export function RoleDashboardSkeleton({ isLight = false }) {
+export function RoleDashboardSkeleton({ isLight: isLightProp, roleName }) {
+  const isLight = useIsLight(isLightProp);
   return (
     <div className="space-y-8 animate-in fade-in duration-300">
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
-        <StatCardSkeleton isLight={isLight} />
-        <StatCardSkeleton isLight={isLight} />
-        <StatCardSkeleton isLight={isLight} />
-        <StatCardSkeleton isLight={isLight} />
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4 sm:gap-5">
+        {Array.from({ length: 8 }).map((_, i) => (
+          <StatCardSkeleton key={i} isLight={isLight} />
+        ))}
       </div>
 
       <DailySalesChartSkeleton isLight={isLight} />
 
       <TableCardSkeleton
-        columns={6}
+        columns={7}
         rows={6}
         isLight={isLight}
-        headers={["Record ID", "Product", "Consignment", "Status", "Date", "Action"]}
+        headers={["Cart ID", "Wholesaler", "Retailer", "Date", "Manufacturer", "Status", "Actions"]}
       />
     </div>
   );

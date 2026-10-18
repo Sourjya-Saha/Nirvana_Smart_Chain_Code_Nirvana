@@ -53,6 +53,12 @@ function AuthForm({ authType, userType, redirectPath }) {
       if (authType === 'signup') {
         navigate(`/login/${userType}`);
       } else {
+        if (data.user_type && data.user_type.toLowerCase() !== userType.toLowerCase()) {
+          const actualRole = data.user_type.charAt(0).toUpperCase() + data.user_type.slice(1);
+          const portalRole = userType.charAt(0).toUpperCase() + userType.slice(1);
+          setError(`Access Denied: Account '${username}' is registered as a ${actualRole}, not a ${portalRole}. Please sign in via the ${actualRole} portal.`);
+          return;
+        }
         if (data.unique_user_id) {
           login(data.unique_user_id);
         }

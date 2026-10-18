@@ -175,9 +175,10 @@ def get_all_orders_manu(connection, manu_id):
     cursor = connection.cursor()
 
     query = """
-        SELECT order_id, customer_name, date_time, phone_num, status, total, user_id
-        FROM retailer_to_manu
-        WHERE manu_id = %s
+        SELECT r.order_id, r.customer_name, r.date_time, r.phone_num, r.status, r.total, r.user_id, u.user_id AS retailer_name
+        FROM retailer_to_manu r
+        LEFT JOIN users u ON u.generated_unique_id = r.user_id
+        WHERE r.manu_id = %s
     """
 
     data = (manu_id,)
@@ -187,8 +188,19 @@ def get_all_orders_manu(connection, manu_id):
     response = []
 
     for order in orders:
-        order_dict = {'order_id': order[0], 'customer_name': order[1], 'datetime': order[2], 'phone_num': order[3],
-                      'status': order[4], 'total': order[5], 'user_id': order[6], 'order_details': get_order_details(connection, order[0])}
+        ret_name = order[7] or order[1] or f"Retailer #{order[6]}"
+        order_dict = {
+            'order_id': order[0],
+            'customer_name': order[1],
+            'datetime': order[2],
+            'phone_num': order[3],
+            'status': order[4],
+            'total': order[5],
+            'user_id': order[6],
+            'retailer_name': ret_name,
+            'retailerName': ret_name,
+            'order_details': get_order_details(connection, order[0])
+        }
 
         # Fetch order details for each order and append to the order
         response.append(order_dict)

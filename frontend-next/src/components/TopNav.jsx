@@ -206,6 +206,21 @@ export default function TopNav() {
               >
                 Distributor
               </Link>
+              <Link
+                href="/admin"
+                onClick={() => setOpen(false)}
+                className={`cursor-pointer text-[11px] font-bold transition-all duration-300 uppercase tracking-[0.2em] font-sans ${
+                  isLight
+                    ? pathname.includes("/admin")
+                      ? "text-black scale-105"
+                      : "text-neutral-600 hover:text-black hover:scale-105"
+                    : pathname.includes("/admin")
+                    ? "text-white scale-105"
+                    : "text-white/60 hover:text-white hover:scale-105"
+                }`}
+              >
+                Admin
+              </Link>
 
               {/* Theme Toggle Button inside Right Pill */}
               <button
@@ -310,6 +325,7 @@ export default function TopNav() {
                   { label: "Wholesaler", href: "/auth/login/wholesaler" },
                   { label: "Retailer Portal", href: "/auth/login/retailer" },
                   { label: "Distributor Portal", href: "/auth/login/distributor" },
+                  { label: "Admin Console", href: "/admin" },
                 ].map((item) => {
                   const active = pathname === item.href || (item.href !== "/auth/login" && pathname.startsWith(item.href));
                   return (
