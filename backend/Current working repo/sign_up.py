@@ -1,3 +1,6 @@
+import os
+from dotenv import load_dotenv
+load_dotenv()
 import hashlib
 import random
 import smtplib
@@ -54,7 +57,7 @@ def otpverification(to_mail):
     server.starttls()
 
     from_mail = 'nirvanahealthchain@gmail.com'
-    server.login(from_mail, "cfev fhqu jfih mvkx")
+    server.login(from_mail, os.getenv('MAIL_PASSWORD', ''))
     msg = EmailMessage()
     msg['Subject'] = "OTP Verification"
     msg['From'] = from_mail

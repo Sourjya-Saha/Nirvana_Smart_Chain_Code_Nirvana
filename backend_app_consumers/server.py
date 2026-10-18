@@ -1,3 +1,5 @@
+from dotenv import load_dotenv
+load_dotenv()
 from flask import Flask, request, jsonify, session, g, send_from_directory, send_file
 # from tensorboard.compat.tensorflow_stub.dtypes import double
 
@@ -47,8 +49,8 @@ from datetime import datetime
 from dateutil import parser
 import traceback
 # Razorpay credentials (replace with your actual keys)
-RAZORPAY_KEY_ID = 'rzp_test_2EpPSCTb8XHFCk'           #prvt details
-RAZORPAY_KEY_SECRET = 'jHxKaISFIwGZ1byoWqtzldAB' #prvt details
+RAZORPAY_KEY_ID = os.getenv('RAZORPAY_KEY_ID', '')           #prvt details
+RAZORPAY_KEY_SECRET = os.getenv('RAZORPAY_KEY_SECRET', '') #prvt details
 
 # Razorpay client instance
 razorpay_client = razorpay.Client(auth=(RAZORPAY_KEY_ID, RAZORPAY_KEY_SECRET))

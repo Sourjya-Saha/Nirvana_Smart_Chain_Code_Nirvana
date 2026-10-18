@@ -830,7 +830,7 @@ export default function RetailShipmentPage() {
       clearAll();
 
       const options = {
-        key: process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID || "rzp_test_ToXzU7ueHLR5Wr",
+        key: process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID || "",
         amount: response.data.total_amount * 100,
         currency: "INR",
         name: "Nirvana Smart Chain",

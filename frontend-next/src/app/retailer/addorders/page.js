@@ -333,7 +333,7 @@ export default function RetailerAddOrderPage() {
       }
 
       const options = {
-        key: "rzp_test_2EpPSCTb8XHFCk",
+        key: process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID || "",
         amount: orderData.total_amount * 100,
         currency: "INR",
         name: userName || "Maa Tara Store",

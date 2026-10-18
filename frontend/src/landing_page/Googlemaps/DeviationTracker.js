@@ -57,6 +57,7 @@ const DeviationTracker = ({ cartId }) => {
   };
 
   const fetchLocationNames = async (data) => {
+    const googleMapsApiKey = process.env.REACT_APP_GOOGLE_MAPS_API_KEY || '';
     const locationCache = {};
 
     for (const entry of Object.values(data)) {
@@ -67,7 +68,7 @@ const DeviationTracker = ({ cartId }) => {
       if (!locationCache[startKey]) {
         try {
           const response = await fetch(
-            `https://maps.googleapis.com/maps/api/geocode/json?latlng=${start.location.lat},${start.location.lng}&key=AIzaSyDrsN2GDcDeIXFgAnx25qLeOyrK5h94A0I`
+            `https://maps.googleapis.com/maps/api/geocode/json?latlng=${start.location.lat},${start.location.lng}&key=${googleMapsApiKey}`
           );
           const data = await response.json();
           if (data.results[0]) {
@@ -81,7 +82,7 @@ const DeviationTracker = ({ cartId }) => {
       if (!locationCache[endKey]) {
         try {
           const response = await fetch(
-            `https://maps.googleapis.com/maps/api/geocode/json?latlng=${end.location.lat},${end.location.lng}&key=AIzaSyDrsN2GDcDeIXFgAnx25qLeOyrK5h94A0I`
+            `https://maps.googleapis.com/maps/api/geocode/json?latlng=${end.location.lat},${end.location.lng}&key=${googleMapsApiKey}`
           );
           const data = await response.json();
           if (data.results[0]) {

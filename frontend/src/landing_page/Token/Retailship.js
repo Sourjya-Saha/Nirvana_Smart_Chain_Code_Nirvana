@@ -353,7 +353,7 @@ const contractAddress = contractConfig.registryAddress; // Registry contract add
       setRazorpayOrderData(response.data);
   
       const options = {
-        key: 'rzp_test_2EpPSCTb8XHFCk',
+        key: process.env.REACT_APP_RAZORPAY_KEY_ID || '',
         amount: response.data.total_amount * 100,
         currency: "INR",
         name: 'Cart Transaction',

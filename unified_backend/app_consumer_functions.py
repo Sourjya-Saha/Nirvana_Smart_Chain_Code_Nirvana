@@ -21,8 +21,8 @@ from dotenv import load_dotenv
 load_dotenv()
 
 # Razorpay credentials (replace with your actual keys)
-RAZORPAY_KEY_ID = os.getenv('RAZORPAY_KEY_ID', 'rzp_test_ToXzU7ueHLR5Wr')           #prvt details
-RAZORPAY_KEY_SECRET = os.getenv('RAZORPAY_KEY_SECRET', 'tcl8b7NSD2EQD5W7R7KM13WR') #prvt details
+RAZORPAY_KEY_ID = os.getenv('RAZORPAY_KEY_ID', '')           #prvt details
+RAZORPAY_KEY_SECRET = os.getenv('RAZORPAY_KEY_SECRET', '') #prvt details
 
 # Razorpay client instance
 razorpay_client = razorpay.Client(auth=(RAZORPAY_KEY_ID, RAZORPAY_KEY_SECRET))
@@ -123,7 +123,7 @@ def otpverification(to_mail):
     mail_server = os.getenv('MAIL_SERVER', 'smtp.gmail.com')
     mail_port = int(os.getenv('MAIL_PORT', 587))
     from_mail = os.getenv('MAIL_USERNAME', 'nirvanahealthchain@gmail.com')
-    mail_pass = os.getenv('MAIL_PASSWORD', 'cfev fhqu jfih mvkx')
+    mail_pass = os.getenv('MAIL_PASSWORD', '')
 
     server = smtplib.SMTP(mail_server, mail_port)
     server.starttls()

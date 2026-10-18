@@ -50,8 +50,8 @@ from datetime import datetime
 from dateutil import parser
 import traceback
 # Razorpay credentials (replace with your actual keys)
-RAZORPAY_KEY_ID = os.getenv('RAZORPAY_KEY_ID', 'rzp_test_ToXzU7ueHLR5Wr')
-RAZORPAY_KEY_SECRET = os.getenv('RAZORPAY_KEY_SECRET', 'tcl8b7NSD2EQD5W7R7KM13WR')
+RAZORPAY_KEY_ID = os.getenv('RAZORPAY_KEY_ID', '')
+RAZORPAY_KEY_SECRET = os.getenv('RAZORPAY_KEY_SECRET', '')
 
 # Razorpay client instance
 razorpay_client = razorpay.Client(auth=(RAZORPAY_KEY_ID, RAZORPAY_KEY_SECRET))
@@ -60,7 +60,7 @@ app = Flask(__name__)
 
 CORS(app)
 
-app.secret_key = 'your_secret_key'
+app.secret_key = os.getenv('SECRET_KEY', 'pharma-supply-chain-secret-key-2026')
 
 global_qr_data = {}
 

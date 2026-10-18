@@ -134,8 +134,10 @@ const TrafficMap = () => {
     };
   }, []);
 
+  const googleMapsApiKey = process.env.REACT_APP_GOOGLE_MAPS_API_KEY || "";
+
   const { isLoaded, loadError } = useLoadScript({
-    googleMapsApiKey: "AIzaSyDrsN2GDcDeIXFgAnx25qLeOyrK5h94A0I",
+    googleMapsApiKey,
     libraries,
     onLoad: handleScriptLoad,
   });

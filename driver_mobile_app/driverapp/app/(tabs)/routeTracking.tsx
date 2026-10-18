@@ -26,7 +26,7 @@ import io from 'socket.io-client';
 import ChatComponent from './ChatComponent';
 
 const { width, height } = Dimensions.get('window');
-const GOOGLE_MAPS_API_KEY = 'AIzaSyDrsN2GDcDeIXFgAnx25qLeOyrK5h94A0I';
+const GOOGLE_MAPS_API_KEY = process.env.EXPO_PUBLIC_GOOGLE_MAPS_API_KEY || '';
 
 interface NavigationState {
   isActive: boolean;
@@ -401,10 +401,7 @@ const TrackingScreen = () => {
         throw new Error('Invalid or insufficient coordinates in route data');
       }
 
-      const googleApiKey = Platform.select({
-        ios: 'AIzaSyDrsN2GDcDeIXFgAnx25qLeOyrK5h94A0I',
-        android: 'AIzaSyDrsN2GDcDeIXFgAnx25qLeOyrK5h94A0I'
-      });
+      const googleApiKey = process.env.EXPO_PUBLIC_GOOGLE_MAPS_API_KEY || GOOGLE_MAPS_API_KEY;
 
       let routeResponses;
       let routeData;

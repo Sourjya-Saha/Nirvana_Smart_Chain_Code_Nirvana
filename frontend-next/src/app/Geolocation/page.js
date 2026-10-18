@@ -30,8 +30,7 @@ import DeviationTracker from "./components/DeviationTracker";
 const SOCKET_SERVER = process.env.NEXT_PUBLIC_GEOLOC_SOCKET_URL || "http://localhost:8000";
 const API_URL = process.env.NEXT_PUBLIC_GEOLOC_API_URL || "http://127.0.0.1:8000/api";
 const MAIN_API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:5000";
-const GOOGLE_MAPS_API_KEY =
-  process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY || "AIzaSyDrsN2GDcDeIXFgAnx25qLeOyrK5h94A0I";
+const GOOGLE_MAPS_API_KEY = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY || "";
 
 const DEFAULT_COORDINATES = {
   center: { lat: 22.5726, lng: 88.3639 },

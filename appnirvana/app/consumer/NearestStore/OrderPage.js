@@ -113,7 +113,7 @@ export default function Orderspage({ route, navigation }) {
         description: 'Medicine Order Payment',
         image: 'https://your-store-logo.png',
         currency: 'INR',
-        key: 'rzp_test_2EpPSCTb8XHFCk',
+        key: process.env.EXPO_PUBLIC_RAZORPAY_KEY_ID || '',
         amount: orderData.total_amount * 100,
         name: 'Pharmacy Store',
         order_id: orderData.razorpay_order_id,

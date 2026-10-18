@@ -3,6 +3,10 @@ import random
 import smtplib
 from email.message import EmailMessage
 from datetime import datetime
+import os
+from dotenv import load_dotenv
+
+load_dotenv()
 
 def sign_up(connection, username, password, user_type, metamask_add, user_lat, user_long):
     cursor = connection.cursor()
@@ -50,11 +54,14 @@ def otpverification(to_mail):
     for i in range(6):
         otp += str(random.randint(0,9))
     print(otp)
-    server = smtplib.SMTP('smtp.gmail.com', 587)
-    server.starttls()
+    mail_server = os.getenv('MAIL_SERVER', 'smtp.gmail.com')
+    mail_port = int(os.getenv('MAIL_PORT', 587))
+    from_mail = os.getenv('MAIL_USERNAME', 'nirvanahealthchain@gmail.com')
+    mail_pass = os.getenv('MAIL_PASSWORD', '')
 
-    from_mail = 'nirvanahealthchain@gmail.com'
-    server.login(from_mail, "cfev fhqu jfih mvkx")
+    server = smtplib.SMTP(mail_server, mail_port)
+    server.starttls()
+    server.login(from_mail, mail_pass)
     msg = EmailMessage()
     msg['Subject'] = "OTP Verification"
     msg['From'] = from_mail

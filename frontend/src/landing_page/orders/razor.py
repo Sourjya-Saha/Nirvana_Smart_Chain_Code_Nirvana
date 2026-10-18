@@ -1,3 +1,5 @@
+from dotenv import load_dotenv
+load_dotenv()
 from flask import Flask, request, jsonify, session, g, send_from_directory, send_file
 from sympy.codegen.ast import continue_
 
@@ -37,8 +39,8 @@ from encrypt_qr import encrypt_qr, decrypt_qr
 import razorpay
 
 # Razorpay credentials (replace with your actual keys)
-RAZORPAY_KEY_ID = 'rzp_test_2EpPSCTb8XHFCk'
-RAZORPAY_KEY_SECRET = 'jHxKaISFIwGZ1byoWqtzldAB'
+RAZORPAY_KEY_ID = os.getenv('RAZORPAY_KEY_ID', '')
+RAZORPAY_KEY_SECRET = os.getenv('RAZORPAY_KEY_SECRET', '')
 
 # Razorpay client instance
 razorpay_client = razorpay.Client(auth=(RAZORPAY_KEY_ID, RAZORPAY_KEY_SECRET))

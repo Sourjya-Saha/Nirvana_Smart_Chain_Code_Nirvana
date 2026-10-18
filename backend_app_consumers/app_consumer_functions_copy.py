@@ -1,3 +1,6 @@
+import os
+from dotenv import load_dotenv
+load_dotenv()
 import hashlib
 import random
 import smtplib
@@ -16,8 +19,8 @@ from mysql.connector import Error
 
 
 # Razorpay credentials (replace with your actual keys)
-RAZORPAY_KEY_ID = 'rzp_test_2EpPSCTb8XHFCk'           #prvt details
-RAZORPAY_KEY_SECRET = 'jHxKaISFIwGZ1byoWqtzldAB' #prvt details
+RAZORPAY_KEY_ID = os.getenv('RAZORPAY_KEY_ID', '')           #prvt details
+RAZORPAY_KEY_SECRET = os.getenv('RAZORPAY_KEY_SECRET', '') #prvt details
 
 # Razorpay client instance
 razorpay_client = razorpay.Client(auth=(RAZORPAY_KEY_ID, RAZORPAY_KEY_SECRET))
@@ -119,7 +122,7 @@ def otpverification(to_mail):
     server.starttls()
 
     from_mail = 'nirvanahealthchain@gmail.com'
-    server.login(from_mail, "cfev fhqu jfih mvkx")
+    server.login(from_mail, os.getenv('MAIL_PASSWORD', ''))
     msg = EmailMessage()
     msg['Subject'] = "OTP Verification"
     msg['From'] = from_mail

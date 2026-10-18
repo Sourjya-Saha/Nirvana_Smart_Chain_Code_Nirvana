@@ -161,10 +161,7 @@ const TrackingScreen = () => {
         throw new Error('Invalid coordinates in route data');
       }
   
-      const googleApiKey = Platform.select({
-        ios: 'AIzaSyCjH-5tCALXqN26NU5gF6LBl66gllE0rrw',
-        android: 'AIzaSyCjH-5tCALXqN26NU5gF6LBl66gllE0rrw'
-      });
+      const googleApiKey = process.env.EXPO_PUBLIC_GOOGLE_MAPS_API_KEY || '';
   
       // Request routes with alternatives and overview=full for more detailed paths
       const firstLegUrl = `https://maps.googleapis.com/maps/api/directions/json?origin=${startCoords.latitude},${startCoords.longitude}&destination=${checkpointCoords.latitude},${checkpointCoords.longitude}&mode=driving&alternatives=false&overview=full&key=${googleApiKey}`;

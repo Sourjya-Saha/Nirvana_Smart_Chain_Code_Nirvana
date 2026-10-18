@@ -618,8 +618,8 @@ const TrackingScreen = () => {
   const [nextManeuver, setNextManeuver] = useState(null);
   const { isDeviating, deviationStartPoint } = useRouteTracking(socket, currentLocation, routeLegsPolylines, cartId, driverId);
   const GOOGLE_MAPS_API_KEY = Platform.select({
-    ios: 'AIzaSyCjH-5tCALXqN26NU5gF6LBl66gllE0rrw',
-    android: 'AIzaSyCjH-5tCALXqN26NU5gF6LBl66gllE0rrw'
+    ios: process.env.EXPO_PUBLIC_GOOGLE_MAPS_API_KEY || '',
+    android: process.env.EXPO_PUBLIC_GOOGLE_MAPS_API_KEY || ''
   });
   const initializeSocket = async () => {
     if (socket) {
@@ -728,8 +728,8 @@ const TrackingScreen = () => {
       }
   
       const googleApiKey = Platform.select({
-        ios: 'AIzaSyCjH-5tCALXqN26NU5gF6LBl66gllE0rrw',
-        android: 'AIzaSyCjH-5tCALXqN26NU5gF6LBl66gllE0rrw'
+        ios: process.env.EXPO_PUBLIC_GOOGLE_MAPS_API_KEY || '',
+        android: process.env.EXPO_PUBLIC_GOOGLE_MAPS_API_KEY || ''
       });
   
       // Request routes with alternatives and overview=full for more detailed paths
@@ -1933,7 +1933,7 @@ export default TrackingScreen;
 
 
 const { width, height } = Dimensions.get('window');
-const GOOGLE_MAPS_API_KEY = 'AIzaSyCjH-5tCALXqN26NU5gF6LBl66gllE0rrw';
+const GOOGLE_MAPS_API_KEY = process.env.EXPO_PUBLIC_GOOGLE_MAPS_API_KEY || '';
 interface NavigationState {
   isActive: boolean;
   currentLegIndex: number;
@@ -2092,8 +2092,8 @@ const TrackingScreen = () => {
       }
   
       const googleApiKey = Platform.select({
-        ios: 'AIzaSyCjH-5tCALXqN26NU5gF6LBl66gllE0rrw',
-        android: 'AIzaSyCjH-5tCALXqN26NU5gF6LBl66gllE0rrw'
+        ios: process.env.EXPO_PUBLIC_GOOGLE_MAPS_API_KEY || '',
+        android: process.env.EXPO_PUBLIC_GOOGLE_MAPS_API_KEY || ''
       });
   
       // Request routes with alternatives and overview=full for more detailed paths

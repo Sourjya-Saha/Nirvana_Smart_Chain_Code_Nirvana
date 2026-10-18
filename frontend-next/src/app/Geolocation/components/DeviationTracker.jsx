@@ -8,7 +8,7 @@ export default function DeviationTracker({
   cartId,
   isLight = false,
   apiBase = process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:5000",
-  googleMapsApiKey = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY || "AIzaSyDrsN2GDcDeIXFgAnx25qLeOyrK5h94A0I",
+  googleMapsApiKey = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY || "",
 }) {
   const [deviationData, setDeviationData] = useState(null);
   const [loading, setLoading] = useState(false);

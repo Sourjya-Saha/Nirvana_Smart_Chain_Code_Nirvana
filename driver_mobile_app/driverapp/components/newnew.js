@@ -22,7 +22,7 @@ import MapView, { Marker, Polyline, PROVIDER_DEFAULT, PROVIDER_GOOGLE } from 're
 import MapViewDirections from 'react-native-maps-directions';
 import io from 'socket.io-client';
 const { width, height } = Dimensions.get('window');
-const GOOGLE_MAPS_API_KEY = 'AIzaSyCjH-5tCALXqN26NU5gF6LBl66gllE0rrw';
+const GOOGLE_MAPS_API_KEY = process.env.EXPO_PUBLIC_GOOGLE_MAPS_API_KEY || '';
 interface NavigationState {
   isActive: boolean;
   currentLegIndex: number;
@@ -231,8 +231,8 @@ const TrackingScreen = () => {
       }
   
       const googleApiKey = Platform.select({
-        ios: 'AIzaSyCjH-5tCALXqN26NU5gF6LBl66gllE0rrw',
-        android: 'AIzaSyCjH-5tCALXqN26NU5gF6LBl66gllE0rrw'
+        ios: process.env.EXPO_PUBLIC_GOOGLE_MAPS_API_KEY || '',
+        android: process.env.EXPO_PUBLIC_GOOGLE_MAPS_API_KEY || ''
       });
   
       // Request routes with alternatives and overview=full for more detailed paths

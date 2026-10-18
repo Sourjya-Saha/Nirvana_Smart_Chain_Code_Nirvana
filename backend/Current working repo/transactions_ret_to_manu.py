@@ -1,9 +1,12 @@
+import os
+from dotenv import load_dotenv
+load_dotenv()
 import datetime
 import razorpay
 
 # Razorpay credentials (replace with your actual keys)
-RAZORPAY_KEY_ID = 'rzp_test_2EpPSCTb8XHFCk'
-RAZORPAY_KEY_SECRET = 'jHxKaISFIwGZ1byoWqtzldAB'
+RAZORPAY_KEY_ID = os.getenv('RAZORPAY_KEY_ID', '')
+RAZORPAY_KEY_SECRET = os.getenv('RAZORPAY_KEY_SECRET', '')
 
 # Razorpay client instance
 razorpay_client = razorpay.Client(auth=(RAZORPAY_KEY_ID, RAZORPAY_KEY_SECRET))
