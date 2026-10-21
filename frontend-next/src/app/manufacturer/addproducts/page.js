@@ -9,15 +9,6 @@ import Link from "next/link";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:5000";
 
-const DEFAULT_UOMS = [
-  { uom_id: 1, uom_name: "Tablets / Capsules" },
-  { uom_id: 2, uom_name: "Bottles / Syrups" },
-  { uom_id: 3, uom_name: "Injections / Vials" },
-  { uom_id: 4, uom_name: "Ointments / Tubes" },
-  { uom_id: 5, uom_name: "Strips / Blisters" },
-  { uom_id: 6, uom_name: "Boxes / Kits" },
-];
-
 export default function ManufacturerAddProductPage() {
   const { userId } = useAuth();
   const { theme } = useTheme();
@@ -31,13 +22,13 @@ export default function ManufacturerAddProductPage() {
     price_per_unit: "",
     quantity_of_uom: "",
     shelf_num: "",
-    uom_id: 1,
+    uom_id: "",
     picture_of_the_prod: null,
     description: "",
     user_id: "",
   });
 
-  const [uoms, setUoms] = useState(DEFAULT_UOMS);
+  const [uoms, setUoms] = useState([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [successMessage, setSuccessMessage] = useState("");
   const [errorMessage, setErrorMessage] = useState("");
@@ -57,7 +48,7 @@ export default function ManufacturerAddProductPage() {
           }
         }
       } catch (e) {
-        console.warn("Could not fetch UOMs from backend; using default units.");
+        console.error("Could not fetch UOMs from backend:", e);
       }
     };
     fetchUOMs();
@@ -435,11 +426,15 @@ export default function ManufacturerAddProductPage() {
                         : "bg-[#14151a] border-neutral-800 text-white focus:border-neutral-600 focus:bg-[#181920]"
                     }`}
                   >
-                    {uoms.map((u) => (
-                      <option key={u.uom_id} value={u.uom_id}>
-                        {u.uom_name || `Unit #${u.uom_id}`}
-                      </option>
-                    ))}
+                    {uoms.length === 0 ? (
+                      <option value="">Loading units...</option>
+                    ) : (
+                      uoms.map((u) => (
+                        <option key={u.uom_id} value={u.uom_id}>
+                          {u.uom_name || `Unit #${u.uom_id}`}
+                        </option>
+                      ))
+                    )}
                   </select>
                 </div>
 

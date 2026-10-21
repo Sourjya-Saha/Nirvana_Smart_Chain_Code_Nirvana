@@ -102,6 +102,14 @@ export default function ProductPreviewModal({
               <img
                 src={getProductImageUrl(imageSource)}
                 alt={name}
+                onError={(e) => {
+                  if (imageSource && !e.currentTarget.dataset.fallbackTried) {
+                    e.currentTarget.dataset.fallbackTried = "true";
+                    const clean = String(imageSource).replace(/^data:[^;]+;base64,/, "").trim();
+                    const mime = clean.startsWith("iVBOR") ? "image/png" : (clean.startsWith("UklGR") ? "image/webp" : "image/jpeg");
+                    e.currentTarget.src = `data:${mime};base64,${clean}`;
+                  }
+                }}
                 className="max-h-36 max-w-[240px] object-contain drop-shadow-xl rounded-xl transition-transform duration-300 hover:scale-105"
               />
             ) : (

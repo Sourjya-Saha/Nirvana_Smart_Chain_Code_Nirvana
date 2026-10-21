@@ -597,6 +597,15 @@ export default function RetailerProductsPage() {
                             <img
                               src={imageUrl}
                               alt={p.name}
+                              onError={(e) => {
+                                const raw = p.picture_of_the_prod;
+                                if (raw && !e.currentTarget.dataset.fallbackTried) {
+                                  e.currentTarget.dataset.fallbackTried = "true";
+                                  const clean = raw.replace(/^data:[^;]+;base64,/, "").trim();
+                                  const mime = clean.startsWith("iVBOR") ? "image/png" : (clean.startsWith("UklGR") ? "image/webp" : "image/jpeg");
+                                  e.currentTarget.src = `data:${mime};base64,${clean}`;
+                                }
+                              }}
                               className="w-12 h-12 object-contain rounded-lg border border-neutral-200/60 dark:border-neutral-800/80 bg-neutral-50 dark:bg-neutral-900 shadow-sm"
                             />
                           ) : (
@@ -829,6 +838,15 @@ export default function RetailerProductsPage() {
                   <img
                     src={getProductImageUrl(viewingProduct.picture_of_the_prod)}
                     alt={viewingProduct.name}
+                    onError={(e) => {
+                      const raw = viewingProduct.picture_of_the_prod;
+                      if (raw && !e.currentTarget.dataset.fallbackTried) {
+                        e.currentTarget.dataset.fallbackTried = "true";
+                        const clean = raw.replace(/^data:[^;]+;base64,/, "").trim();
+                        const mime = clean.startsWith("iVBOR") ? "image/png" : (clean.startsWith("UklGR") ? "image/webp" : "image/jpeg");
+                        e.currentTarget.src = `data:${mime};base64,${clean}`;
+                      }
+                    }}
                     className="max-h-48 max-w-full object-contain rounded-xl drop-shadow-lg transition-transform duration-300 hover:scale-105"
                   />
                 ) : (
