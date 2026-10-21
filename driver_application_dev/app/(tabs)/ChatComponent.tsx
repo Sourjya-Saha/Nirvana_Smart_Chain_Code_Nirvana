@@ -82,14 +82,14 @@ const ChatComponent = ({ userId, cartId, role, onClose, existingSocket }: any) =
         setMessages(data.history);
         messageQueue.current.clear();
         data.history.forEach((msg: any) => {
-          messageQueue.current.add(${msg.sender_id}-);
+          messageQueue.current.add(`${msg.sender_id}-${msg.timestamp}`);
         });
       }
     };
 
     const onNewMessage = (message: any) => {
       console.log('New message received:', message);
-      const messageId = ${message.sender_id}-;
+      const messageId = `${message.sender_id}-${message.timestamp}`;
       if (!messageQueue.current.has(messageId)) {
         messageQueue.current.add(messageId);
         setMessages(prev => [...prev, message]);
