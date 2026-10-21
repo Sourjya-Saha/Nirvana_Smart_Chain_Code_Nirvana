@@ -13,6 +13,7 @@ import {
   AlertTriangle,
   Info,
   Truck,
+  MapPin,
   Sun,
   Moon,
   ShieldCheck,
@@ -223,7 +224,9 @@ function ShipmentTrackingInner(props) {
 
   // Refs
   const mapRef = useRef(null);
+  const mapInstanceRef = useRef(null);
   const socketRef = useRef(null);
+  const driverMarkerRef = useRef(null);
   const startMarkerRef = useRef(null);
   const checkpointMarkerRef = useRef(null);
   const destinationMarkerRef = useRef(null);
@@ -231,6 +234,152 @@ function ShipmentTrackingInner(props) {
   const directionsRendererRef = useRef(null);
   const directionsServiceRef = useRef(null);
   const routePolylinesRef = useRef([]);
+  const lastKnownInfoWindowRef = useRef(null);
+  const driverInfoWindowRef = useRef(null);
+  const geocodeCacheRef = useRef(new Map());
+
+  const [driverLocation, setDriverLocation] = useState(null);
+  const [driverAddress, setDriverAddress] = useState("");
+  const driverAddressRef = useRef("");
+  const [driverStatus, setDriverStatus] = useState({
+    isActive: false,
+    status: "idle",
+    lastSeen: null,
+    speed: 0,
+  });
+
+  // Multi-tier Reverse Geocoder with Caching (Google JS -> Google REST -> BigDataCloud -> Fallback)
+  const reverseGeocode = async (lat, lng) => {
+    if (lat === null || lat === undefined || lng === null || lng === undefined) return "";
+    const numLat = parseFloat(lat);
+    const numLng = parseFloat(lng);
+    if (isNaN(numLat) || isNaN(numLng)) return "";
+
+    const cacheKey = `${numLat.toFixed(4)},${numLng.toFixed(4)}`;
+    if (geocodeCacheRef.current.has(cacheKey)) {
+      return geocodeCacheRef.current.get(cacheKey);
+    }
+
+    let address = "";
+
+    // 1. Google Maps JS SDK Geocoder (free & fast client-side)
+    if (typeof window !== "undefined" && window.google?.maps?.Geocoder) {
+      try {
+        const geocoder = new window.google.maps.Geocoder();
+        const response = await new Promise((resolve) => {
+          geocoder.geocode({ location: { lat: numLat, lng: numLng } }, (results, status) => {
+            if (status === "OK" && results && results[0]) {
+              resolve(results[0].formatted_address);
+            } else {
+              resolve(null);
+            }
+          });
+        });
+        if (response) address = response;
+      } catch (err) {
+        console.warn("Google JS Geocoder error:", err);
+      }
+    }
+
+    // 2. Google Maps REST API fallback
+    if (!address && GOOGLE_MAPS_API_KEY) {
+      try {
+        const res = await fetch(
+          `https://maps.googleapis.com/maps/api/geocode/json?latlng=${numLat},${numLng}&key=${GOOGLE_MAPS_API_KEY}`
+        );
+        const data = await res.json();
+        if (data.status === "OK" && data.results && data.results[0]) {
+          address = data.results[0].formatted_address;
+        }
+      } catch (err) {
+        console.warn("Google REST Geocoder error:", err);
+      }
+    }
+
+    // 3. BigDataCloud Client Reverse Geocode (reliable, zero API key required)
+    if (!address) {
+      try {
+        const res = await fetch(
+          `https://api.bigdatacloud.net/data/reverse-geocode-client?latitude=${numLat}&longitude=${numLng}&localityLanguage=en`
+        );
+        const data = await res.json();
+        if (data) {
+          const parts = [data.locality || data.city, data.principalSubdivision, data.countryName].filter(Boolean);
+          if (parts.length > 0) {
+            address = parts.join(", ");
+          }
+        }
+      } catch (err) {
+        console.warn("BigDataCloud fallback error:", err);
+      }
+    }
+
+    if (address) {
+      geocodeCacheRef.current.set(cacheKey, address);
+      return address;
+    }
+
+    return `${numLat.toFixed(5)}, ${numLng.toFixed(5)}`;
+  };
+
+  // Automatically geocode driver location whenever updated
+  useEffect(() => {
+    if (driverLocation?.latitude && driverLocation?.longitude) {
+      const numLat = driverLocation.latitude;
+      const numLng = driverLocation.longitude;
+      const cacheKey = `${numLat.toFixed(4)},${numLng.toFixed(4)}`;
+
+      if (geocodeCacheRef.current.has(cacheKey)) {
+        const cached = geocodeCacheRef.current.get(cacheKey);
+        setDriverAddress(cached);
+        driverAddressRef.current = cached;
+        return;
+      }
+
+      const timer = setTimeout(async () => {
+        const addr = await reverseGeocode(numLat, numLng);
+        if (addr) {
+          setDriverAddress(addr);
+          driverAddressRef.current = addr;
+        }
+      }, 400);
+
+      return () => clearTimeout(timer);
+    }
+  }, [driverLocation?.latitude, driverLocation?.longitude]);
+
+  // Keep driverAddressRef and any open driver InfoWindow in sync
+  useEffect(() => {
+    driverAddressRef.current = driverAddress;
+  }, [driverAddress]);
+
+  const handleDriverOffline = (status = "disconnected", message = "Driver is disconnected / offline") => {
+    setDriverStatus((prev) => ({
+      ...prev,
+      isActive: false,
+      status: status,
+      lastSeen: prev.lastSeen || new Date().toISOString(),
+    }));
+    // Cleanly remove the live vehicle marker from the map when offline
+    if (driverMarkerRef.current) {
+      driverMarkerRef.current.setMap(null);
+      driverMarkerRef.current = null;
+    }
+    setDriverMarker(null);
+  };
+
+  // Watchdog timer to automatically detect silent timeouts/disconnects (3 minutes threshold)
+  useEffect(() => {
+    const interval = setInterval(() => {
+      if (lastDriverUpdate && driverStatus.isActive) {
+        const elapsed = Date.now() - new Date(lastDriverUpdate).getTime();
+        if (elapsed > 180000) {
+          handleDriverOffline("disconnected", "Driver offline / signal lost");
+        }
+      }
+    }, 5000);
+    return () => clearInterval(interval);
+  }, [lastDriverUpdate, driverStatus.isActive]);
 
   const addNotification = (message, type = "info") => {
     const id = Date.now() + Math.random();
@@ -333,7 +482,7 @@ function ShipmentTrackingInner(props) {
     const verifyAccess = async () => {
       if (!cartId) {
         setIsVerifying(false);
-        setVerifyError("No Cart ID specified for tracking telematics.");
+        setVerifyError("No Cart ID specified for live tracking.");
         return;
       }
 
@@ -351,6 +500,56 @@ function ShipmentTrackingInner(props) {
           setIsAuthorized(true);
           if (response.data.shipment) {
             setShipmentDetails(response.data.shipment);
+            const isDriverActive = Boolean(response.data.shipment.is_driver_active);
+            const rawLoc = response.data.shipment.current_location;
+
+            try {
+              if (rawLoc) {
+                const parsedLoc = typeof rawLoc === "string" ? JSON.parse(rawLoc) : rawLoc;
+                const lat = parseFloat(parsedLoc.latitude ?? parsedLoc.lat);
+                const lng = parseFloat(parsedLoc.longitude ?? parsedLoc.lng);
+                if (!isNaN(lat) && !isNaN(lng)) {
+                  const normalizedLoc = {
+                    latitude: lat,
+                    longitude: lng,
+                    heading: parsedLoc.heading || 0,
+                    speed: parsedLoc.speed || 0,
+                    last_update: parsedLoc.last_update,
+                  };
+                  setDriverLocation(normalizedLoc);
+                  if (parsedLoc.last_update) {
+                    setLastDriverUpdate(new Date(parsedLoc.last_update));
+                  }
+
+                  // ONLY display courier on map if driver is actively transmitting!
+                  // If driver logged out or telemetry is stale, DO NOT show on map.
+                  if (isDriverActive) {
+                    setDriverStatus({
+                      isActive: true,
+                      status: "active",
+                      lastSeen: parsedLoc.last_update,
+                      speed: parsedLoc.speed || 0,
+                    });
+                    if (mapInstanceRef.current) {
+                      updateDriverMarker(mapInstanceRef.current, normalizedLoc);
+                    }
+                  } else {
+                    handleDriverOffline("disconnected", "Driver is currently offline");
+                    setDriverStatus({
+                      isActive: false,
+                      status: "disconnected",
+                      lastSeen: parsedLoc.last_update,
+                      speed: 0,
+                    });
+                  }
+                }
+              } else {
+                handleDriverOffline("disconnected");
+              }
+            } catch (locErr) {
+              console.warn("Could not parse shipment current_location:", locErr);
+              handleDriverOffline("disconnected");
+            }
           }
         } else {
           setIsAuthorized(true);
@@ -368,12 +567,11 @@ function ShipmentTrackingInner(props) {
   // Reverse Geocode coordinates to location names
   useEffect(() => {
     const convertToLocationName = async (coords) => {
+      if (!coords) return "";
       try {
         const [lat, lng] = coords.split(",").map((c) => c.trim());
-        const response = await axios.get(
-          `https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}`
-        );
-        return response.data.display_name;
+        const addr = await reverseGeocode(lat, lng);
+        return addr || coords;
       } catch {
         return coords;
       }
@@ -655,11 +853,22 @@ function ShipmentTrackingInner(props) {
         calculateAndRenderRoute();
       }
 
+      mapInstanceRef.current = mapInstance;
       setMap(mapInstance);
+
+      // ONLY render driver marker if courier is actively transmitting
+      if (driverStatus.isActive && driverLocation) {
+        updateDriverMarker(mapInstance, driverLocation);
+      }
+
       initializeSocket(mapInstance);
 
       return () => {
         if (socketRef.current) socketRef.current.disconnect();
+        if (driverMarkerRef.current) {
+          driverMarkerRef.current.setMap(null);
+          driverMarkerRef.current = null;
+        }
         if (driverMarker) driverMarker.setMap(null);
         if (directionsRendererRef.current) directionsRendererRef.current.setMap(null);
         if (routePolylinesRef.current) {
@@ -686,42 +895,84 @@ function ShipmentTrackingInner(props) {
     isLight,
   ]);
 
-  // Update Driver Marker on live socket telemetry
-  const updateDriverMarker = (mapInstance, locationData) => {
-    if (!mapInstance || !locationData?.latitude || !locationData?.longitude) return;
+  // Update Driver Marker on live socket telemetry or initial payload
+  const updateDriverMarker = (mapInstance, rawData) => {
+    if (!mapInstance || !rawData) return;
+
+    let locationData = rawData;
+    if (typeof rawData === "string") {
+      try {
+        locationData = JSON.parse(rawData);
+      } catch {
+        return;
+      }
+    }
+
+    const latVal = locationData.latitude ?? locationData.lat;
+    const lngVal = locationData.longitude ?? locationData.lng;
+    if (latVal === undefined || latVal === null || lngVal === undefined || lngVal === null) return;
+
+    const lat = parseFloat(latVal);
+    const lng = parseFloat(lngVal);
+    if (isNaN(lat) || isNaN(lng)) return;
 
     try {
-      const position = new window.google.maps.LatLng(
-        parseFloat(locationData.latitude),
-        parseFloat(locationData.longitude)
-      );
+      if (lastKnownInfoWindowRef.current) {
+        lastKnownInfoWindowRef.current.close();
+        lastKnownInfoWindowRef.current = null;
+      }
 
-      if (driverMarker) {
-        driverMarker.setPosition(position);
+      const position = new window.google.maps.LatLng(lat, lng);
+      setDriverLocation({
+        latitude: lat,
+        longitude: lng,
+        heading: locationData.heading || 0,
+        speed: locationData.speed,
+        last_update: locationData.last_update || new Date().toISOString(),
+      });
+
+      // Official Nirvana Health Chain Driver Icon: NHC (1).png
+      const courierIcon = {
+        url: "/media/nhc_courier.png",
+        scaledSize: new window.google.maps.Size(42, 42),
+        anchor: new window.google.maps.Point(21, 21),
+      };
+
+      const infoContent = `
+        <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; padding: 6px 8px; color: #0f172a; min-width: 190px; max-width: 260px;">
+          <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 6px;">
+            <img src="/media/nhc_courier.png" width="24" height="24" style="border-radius: 50%; object-fit: contain; background: #000; padding: 2px;" />
+            <div>
+              <div style="font-size: 13px; font-weight: 700; line-height: 1.2;">Delivery Driver</div>
+              <div style="font-size: 10px; color: #16a34a; font-weight: 600;">On the road</div>
+            </div>
+          </div>
+          <div style="font-size: 11px; font-weight: 500; color: #1e293b; line-height: 1.35;">
+            ${driverAddressRef.current || "Locating address..."}
+          </div>
+        </div>
+      `;
+
+      if (driverMarkerRef.current) {
+        driverMarkerRef.current.setPosition(position);
+        driverMarkerRef.current.setIcon(courierIcon);
+        if (driverInfoWindowRef.current) {
+          driverInfoWindowRef.current.setContent(infoContent);
+        }
       } else {
         const newMarker = new window.google.maps.Marker({
           position: position,
           map: mapInstance,
-          title: "Courier Active Location",
-          icon: {
-            path: window.google.maps.SymbolPath.CIRCLE,
-            scale: 10,
-            fillColor: "#f59e0b",
-            fillOpacity: 1,
-            strokeColor: "#ffffff",
-            strokeWeight: 3,
-          },
+          title: "Delivery Driver (On the road)",
+          icon: courierIcon,
+          zIndex: 999999, // ALWAYS on top of route waypoints
           animation: window.google.maps.Animation.DROP,
         });
 
         const driverInfoWindow = new window.google.maps.InfoWindow({
-          content: `
-            <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; padding: 6px 10px; color: #0f172a;">
-              <div style="font-size: 13px; font-weight: 700;">Courier Live Position</div>
-              <div style="font-size: 11px; color: #475569; margin-top: 2px;">Active in transit</div>
-            </div>
-          `,
+          content: infoContent,
         });
+        driverInfoWindowRef.current = driverInfoWindow;
 
         newMarker.addListener("click", () => {
           if (currentInfoWindowRef.current) {
@@ -731,6 +982,7 @@ function ShipmentTrackingInner(props) {
           currentInfoWindowRef.current = driverInfoWindow;
         });
 
+        driverMarkerRef.current = newMarker;
         setDriverMarker(newMarker);
       }
 
@@ -794,8 +1046,81 @@ function ShipmentTrackingInner(props) {
 
       socketRef.current.on("driver-location-update", (data) => {
         if (mapInstance && data) {
+          const speedNum = typeof data.speed === "number" && !isNaN(data.speed) ? data.speed : 0;
+          setDriverStatus((prev) => ({
+            ...prev,
+            isActive: true,
+            status: "active",
+            lastSeen: data.last_update || new Date().toISOString(),
+            speed: speedNum,
+          }));
           updateDriverMarker(mapInstance, data);
           setLastDriverUpdate(new Date());
+        }
+      });
+
+      socketRef.current.on("driver-status", (data) => {
+        if (data) {
+          if (data.is_active) {
+            setDriverStatus((prev) => ({
+              ...prev,
+              isActive: true,
+              status: data.status || "active",
+              lastSeen: data.timestamp || new Date().toISOString(),
+            }));
+          } else {
+            handleDriverOffline(data.status || "disconnected", data.message);
+            if (data.timestamp) {
+              setDriverStatus((prev) => ({
+                ...prev,
+                lastSeen: data.timestamp,
+              }));
+            }
+            addNotification(data.message || "Driver disconnected or logged out", "warning");
+          }
+        }
+      });
+
+      socketRef.current.on("initial-state", (data) => {
+        if (mapInstance) {
+          if (data?.is_driver_active && data?.current_location) {
+            setDriverStatus({
+              isActive: true,
+              status: "active",
+              lastSeen: data.current_location.last_update,
+              speed: data.current_location.speed || 0,
+            });
+            updateDriverMarker(mapInstance, data.current_location);
+            setLastDriverUpdate(new Date(data.current_location.last_update));
+          } else {
+            // Driver is disconnected or inactive: hide marker from map
+            handleDriverOffline("disconnected");
+            if (data?.current_location) {
+              let loc = data.current_location;
+              if (typeof loc === "string") {
+                try {
+                  loc = JSON.parse(loc);
+                } catch {}
+              }
+              const lat = parseFloat(loc.latitude ?? loc.lat);
+              const lng = parseFloat(loc.longitude ?? loc.lng);
+              if (!isNaN(lat) && !isNaN(lng)) {
+                setDriverLocation({
+                  latitude: lat,
+                  longitude: lng,
+                  heading: loc.heading || 0,
+                  speed: loc.speed || 0,
+                  last_update: loc.last_update,
+                });
+              }
+            }
+            if (data?.current_location?.last_update) {
+              setDriverStatus((prev) => ({
+                ...prev,
+                lastSeen: data.current_location.last_update,
+              }));
+            }
+          }
         }
       });
 
@@ -993,7 +1318,7 @@ function ShipmentTrackingInner(props) {
               Shipment Details
             </h2>
             <p className="text-xs text-neutral-400 mt-0.5">
-              Real-time route tracking and telematics for your supply chain.
+              Real-time route tracking for your supply chain.
             </p>
           </div>
 
@@ -1126,6 +1451,176 @@ function ShipmentTrackingInner(props) {
             )}
           </div>
 
+          {/* Delivery Driver Card */}
+          <div
+            className={`p-4 rounded-2xl border transition-all ${
+              isLight
+                ? "bg-neutral-50/90 border-neutral-200"
+                : "bg-[#141620]/90 border-neutral-800"
+            }`}
+          >
+            <div className="flex items-center justify-between mb-3">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-full border border-neutral-700/60 bg-black flex items-center justify-center shrink-0 shadow-sm p-1.5 overflow-hidden">
+                  <img
+                    src="/media/nhc_courier.png"
+                    alt="Delivery Driver"
+                    className="w-full h-full object-contain"
+                  />
+                </div>
+                <div>
+                  <div className="font-semibold text-xs tracking-tight">
+                    Delivery Driver
+                  </div>
+                  <div className="text-[11px] text-neutral-400">
+                    Live Tracking
+                  </div>
+                </div>
+              </div>
+
+              {/* Status Indicator */}
+              <div
+                className={`px-2.5 py-1 rounded-full text-[10px] font-semibold flex items-center gap-1.5 border ${
+                  driverStatus.isActive
+                    ? isLight
+                      ? "bg-emerald-50 border-emerald-200 text-emerald-800"
+                      : "bg-emerald-950/40 border-emerald-800/80 text-emerald-400"
+                    : isLight
+                    ? "bg-rose-50 border-rose-200 text-rose-800"
+                    : "bg-rose-950/40 border-rose-800/80 text-rose-400"
+                }`}
+              >
+                <span
+                  className={`w-1.5 h-1.5 rounded-full ${
+                    driverStatus.isActive
+                      ? "bg-emerald-500 animate-pulse"
+                      : "bg-rose-500"
+                  }`}
+                />
+                <span>
+                  {driverStatus.isActive ? "On the Road" : "Offline"}
+                </span>
+              </div>
+            </div>
+
+            {driverStatus.isActive && driverLocation ? (
+              <div className="space-y-3 pt-1">
+                <div className="flex items-start justify-between text-[11px] text-neutral-400 gap-2">
+                  <span className="shrink-0 pt-0.5">Current Location:</span>
+                  <div className="text-right max-w-[200px]">
+                    <div
+                      className={`font-medium leading-snug break-words ${
+                        isLight ? "text-neutral-900" : "text-neutral-200"
+                      }`}
+                    >
+                      {driverAddress || (driverLocation ? "Locating address..." : "Location unavailable")}
+                    </div>
+                  </div>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (mapInstanceRef.current && driverMarkerRef.current) {
+                      mapInstanceRef.current.panTo(driverMarkerRef.current.getPosition());
+                      mapInstanceRef.current.setZoom(17);
+                    }
+                  }}
+                  className={`w-full py-2.5 px-4 rounded-full text-xs font-semibold transition-all flex items-center justify-center gap-2 cursor-pointer shadow-sm ${
+                    isLight
+                      ? "bg-neutral-900 hover:bg-black text-white"
+                      : "bg-white hover:bg-neutral-200 text-black"
+                  }`}
+                >
+                  <Truck className="w-3.5 h-3.5" />
+                  <span>Show Driver on Map</span>
+                </button>
+              </div>
+            ) : (
+              <div className="space-y-2.5 pt-1 border-t border-neutral-800/40 mt-2">
+                <p className="text-[11px] text-neutral-400 leading-relaxed">
+                  The delivery driver is currently offline. The live vehicle will appear on the map automatically as soon as the driver starts driving.
+                </p>
+
+                <div
+                  className={`p-2.5 rounded-xl border space-y-2 text-[11px] ${
+                    isLight ? "bg-neutral-100/70 border-neutral-200" : "bg-[#0c0d12]/60 border-neutral-800/70"
+                  }`}
+                >
+                  <div className="flex items-start justify-between gap-2 text-neutral-400">
+                    <span className="shrink-0 pt-0.5">Last Location:</span>
+                    <div className="text-right max-w-[190px]">
+                      <div
+                        className={`font-medium leading-snug break-words ${
+                          isLight ? "text-neutral-900" : "text-neutral-200"
+                        }`}
+                      >
+                        {driverAddress || (driverLocation ? "Locating address..." : "No location recorded yet")}
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center justify-between text-neutral-400 pt-1 border-t border-neutral-800/30">
+                    <span>Last Seen:</span>
+                    <span className={`font-mono font-medium ${isLight ? "text-neutral-800" : "text-neutral-200"}`}>
+                      {driverStatus.lastSeen
+                        ? new Date(driverStatus.lastSeen).toLocaleTimeString([], {
+                            hour: "2-digit",
+                            minute: "2-digit",
+                            second: "2-digit",
+                          })
+                        : "Unknown"}
+                    </span>
+                  </div>
+                </div>
+
+                {driverLocation && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (mapInstanceRef.current && driverLocation) {
+                        const pos = new window.google.maps.LatLng(
+                          driverLocation.latitude,
+                          driverLocation.longitude
+                        );
+                        mapInstanceRef.current.panTo(pos);
+                        mapInstanceRef.current.setZoom(16);
+
+                        if (lastKnownInfoWindowRef.current) {
+                          lastKnownInfoWindowRef.current.close();
+                        }
+                        const info = new window.google.maps.InfoWindow({
+                          position: pos,
+                          content: `
+                            <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; padding: 6px 8px; color: #0f172a; min-width: 190px; max-width: 260px;">
+                              <div style="font-size: 12px; font-weight: 700; color: #e11d48; margin-bottom: 4px;">Last Known Location</div>
+                              <div style="font-size: 11px; font-weight: 500; color: #1e293b; line-height: 1.35; margin-bottom: 4px;">
+                                ${driverAddress || "Address not available"}
+                              </div>
+                              <div style="font-size: 10px; color: #64748b;">
+                                Last Seen: ${driverStatus.lastSeen ? new Date(driverStatus.lastSeen).toLocaleTimeString() : "Recently"}
+                              </div>
+                            </div>
+                          `,
+                        });
+                        info.open(mapInstanceRef.current);
+                        lastKnownInfoWindowRef.current = info;
+                      }
+                    }}
+                    className={`w-full py-2 px-3 rounded-full text-[11px] font-semibold transition-all flex items-center justify-center gap-1.5 cursor-pointer border ${
+                      isLight
+                        ? "bg-neutral-100 hover:bg-neutral-200 text-neutral-800 border-neutral-300"
+                        : "bg-[#181a24] hover:bg-neutral-800 text-neutral-300 border-neutral-800"
+                    }`}
+                  >
+                    <MapPin className="w-3.5 h-3.5 text-neutral-400" />
+                    <span>View Last Known Location</span>
+                  </button>
+                )}
+              </div>
+            )}
+          </div>
+
           {/* Telemetry Status Footer */}
           <div
             className={`p-3.5 rounded-2xl border text-xs flex items-center justify-between ${
@@ -1145,7 +1640,7 @@ function ShipmentTrackingInner(props) {
 
             {lastDriverUpdate && (
               <span className="text-[10px] text-neutral-400">
-                Ping: {new Date(lastDriverUpdate).toLocaleTimeString()}
+                Updated: {new Date(lastDriverUpdate).toLocaleTimeString()}
               </span>
             )}
           </div>
@@ -1347,7 +1842,7 @@ export default function GeolocationPage(props) {
       fallback={
         <div className="w-full h-screen flex flex-col items-center justify-center bg-[#0c0d12] text-white space-y-3">
           <div className="w-8 h-8 border-2 border-neutral-600 border-t-white rounded-full animate-spin" />
-          <p className="text-xs text-neutral-400">Loading Nirvana Telematics Engine...</p>
+          <p className="text-xs text-neutral-400">Loading live tracking...</p>
         </div>
       }
     >

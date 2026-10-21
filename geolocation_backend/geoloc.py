@@ -13,8 +13,32 @@ import traceback
 import logging
 from sympy.codegen import Print
 
-logging.basicConfig(level=logging.DEBUG)
+import time
+import threading
+logging.basicConfig(level=logging.INFO)
+logging.getLogger('mysql.connector').setLevel(logging.WARNING)
 logger = logging.getLogger(__name__)
+
+_cart_participants_cache = {}  # cart_id -> {'participants': dict, 'time': float}
+_last_location_save = {}       # cart_id -> float
+
+def get_cached_participants(cart_id: str):
+    now = time.time()
+    cached = _cart_participants_cache.get(cart_id)
+    if cached and (now - cached['time']) < 180:
+        return cached['participants']
+    participants = DatabaseManager.get_shipment_participants(cart_id)
+    if participants:
+        _cart_participants_cache[cart_id] = {'participants': participants, 'time': now}
+    return participants
+
+def _async_save_location(cart_id: str, location_data: dict, deviation_data: dict = None):
+    try:
+        DatabaseManager.update_driver_location(cart_id, location_data)
+        if deviation_data:
+            DatabaseManager.update_route_deviation(cart_id, deviation_data)
+    except Exception as e:
+        logger.error(f"Background DB location update error: {e}")
 
 app = Flask(__name__)
 CORS(app, resources={
@@ -63,7 +87,7 @@ class DatabaseManager:
     @staticmethod
     def fetch_active_route(cart_id):
         query = """
-                SELECT cart_id, route_data, status
+                SELECT cart_id, route_data, status, current_location
                 FROM route_status 
                 WHERE cart_id = %s AND status = 'ACTIVE'
             """
@@ -427,7 +451,8 @@ class StateManager:
         self.active_routes: Dict[str, Dict[str, Any]] = {}
         self.cart_rooms: Dict[str, List[str]] = {}  # Maps cart_id to list of participant IDs
         self.user_rooms: Dict[str, List[str]] = {}  # Maps user_id to list of cart_ids they're involved in
-        self.chat_history: Dict[str, List[Dict[str, Any]]] = {}  # Maps cart_id to list of messages
+        self.chat_history: Dict[str, List[Dict[str, Any]]] = {}
+        self.driver_status: Dict[str, str] = {}  # Maps cart_id to list of messages
 
 
     def create_cart_room(self, cart_id: str, participants: Dict[str, str]):
@@ -601,65 +626,73 @@ def handle_route_creation(data):
 
 @socketio.on('driver-location-update')
 def handle_driver_location(data):
-    """Handle driver location updates with cart-specific broadcasting and frontend-provided deviation tracking."""
+    """Handle driver location updates with immediate 0ms broadcast, cached authorization, and async DB persistence."""
     try:
-        print(f"Received location update data: {data}")
         cart_id = data.get('cart_id')
+        if not cart_id:
+            return
+
         user_info = state.connected_users.get(request.sid, {})
-
-        print(f"Processing update for cart_id: {cart_id}, user_info: {user_info}")
-
         if user_info.get('role') != 'driver':
             print(f"Error: Non-driver user tried to update location. Role: {user_info.get('role')}")
             return
 
-        # Verify that the user is the driver for the shipment
-        participants = DatabaseManager.get_shipment_participants(cart_id)
-        print(f"Shipment participants: {participants}")
-
-        try:
-            user_id_int = int(user_info['user_id'])
-            participant_values = [int(float(value)) for value in participants.values() if value is not None]
-            print(f"Checking authorization - user_id: {user_id_int}, valid participants: {participant_values}")
-        except Exception as e:
-            print(f"Error converting user IDs: {e}")
-            return
-
-        if not participants or user_id_int not in participant_values:
-            print("Error: Unauthorized driver attempted location update")
-            return
-
-        # Prepare location data
-        current_location = {
-            'latitude': data.get('latitude'),
-            'longitude': data.get('longitude'),
-            'last_update': datetime.now(timezone.utc).isoformat()
-        }
-        print(f"Updated location data: {current_location}")
-
-        # Save driver location to the database
-        if not DatabaseManager.update_driver_location(cart_id, current_location):
-            print("Error: Failed to update driver location in database")
-            return
-
-        # Handle deviation based on frontend data
-        deviation_data = data.get('deviation_data')
-        if deviation_data:
-            print(f"Processing deviation data: {deviation_data}")
-
-            # Update deviation info in database
-            if not DatabaseManager.update_route_deviation(cart_id, deviation_data):
-                print("Error: Failed to update route deviation in database")
+        # Fast authorization check using in-memory cache
+        participants = get_cached_participants(cart_id)
+        if participants:
+            try:
+                user_id_int = int(user_info.get('user_id', 0))
+                participant_values = [int(float(v)) for v in participants.values() if v is not None]
+                if user_id_int not in participant_values:
+                    print("Error: Unauthorized driver attempted location update")
+                    return
+            except Exception as e:
+                print(f"Error checking user authorization: {e}")
                 return
 
-            # Check if this is a start or end of deviation
-            if 'start' in deviation_data and not 'end' in deviation_data:
-                print("New deviation started")
+        lat = data.get('latitude')
+        lng = data.get('longitude')
+        if lat is None or lng is None:
+            return
+
+        # Parse speed (m/s)
+        raw_speed = data.get('speed')
+        speed = 0.0
+        if raw_speed is not None:
+            try:
+                speed_val = float(raw_speed)
+                if speed_val > 0:
+                    speed = speed_val
+            except (ValueError, TypeError):
+                speed = 0.0
+
+        heading = 0.0
+        try:
+            heading = float(data.get('heading', 0) or 0)
+        except (ValueError, TypeError):
+            heading = 0.0
+
+        timestamp = data.get('timestamp') or datetime.now(timezone.utc).isoformat()
+
+        current_location = {
+            'latitude': float(lat),
+            'longitude': float(lng),
+            'heading': heading,
+            'speed': speed,
+            'last_update': timestamp
+        }
+
+        # 1. IMMEDIATE BROADCAST TO ROOM (Instant 0-10ms delivery to web live map!)
+        emit('driver-location-update', current_location, to=cart_id)
+        state.driver_status[cart_id] = 'active'
+
+        # 2. Check & emit deviation events immediately if present
+        deviation_data = data.get('deviation_data')
+        if deviation_data:
+            if 'start' in deviation_data and 'end' not in deviation_data:
                 start_data = deviation_data.get('start', {})
                 current_point = start_data.get('location', {})
                 distance = start_data.get('distance', 0)
-
-                # Emit deviation notification
                 emit('route-deviation', {
                     'cart_id': cart_id,
                     'type': 'start',
@@ -667,13 +700,9 @@ def handle_driver_location(data):
                     'distance': distance,
                     'message': f"Driver deviated {round(distance)}m from planned route"
                 }, to=cart_id)
-
             elif 'end' in deviation_data:
-                print("Deviation ended")
                 end_data = deviation_data.get('end', {})
                 end_point = end_data.get('location', {})
-
-                # Emit deviation end notification
                 emit('route-deviation', {
                     'cart_id': cart_id,
                     'type': 'end',
@@ -682,14 +711,21 @@ def handle_driver_location(data):
                     'message': "Driver returned to route"
                 }, to=cart_id)
 
-        # Broadcast location update to clients in the cart room
-        print(f"Broadcasting location update to room: {cart_id}")
-        emit('driver-location-update', current_location, to=cart_id)
-        print("Location update successfully processed")
+        # 3. Async / Throttled DB save in background daemon thread (never blocks event loop!)
+        now = time.time()
+        last_save = _last_location_save.get(cart_id, 0)
+        if deviation_data or (now - last_save) >= 3.0:
+            _last_location_save[cart_id] = now
+            threading.Thread(
+                target=_async_save_location,
+                args=(cart_id, current_location, deviation_data),
+                daemon=True
+            ).start()
 
     except Exception as e:
         print(f"Error in handle_driver_location: {str(e)}")
         print(traceback.format_exc())
+
 
 
 @socketio.on('request-initial-state')
@@ -709,19 +745,34 @@ def handle_initial_state_request(data):
     if not participants or user_id_int not in participant_values:
         return
 
-    # Fetch route data from the route_status table
-    route_data = DatabaseManager.fetch_route_data(cart_id)
+    # Fetch active route and current location from the route_status table
+    active_route = DatabaseManager.fetch_active_route(cart_id)
+    route_data = active_route['route_data'] if active_route and active_route.get('route_data') else DatabaseManager.fetch_route_data(cart_id)
     print(f"active route data:{route_data}")
 
-    if not route_data:
+    current_location = None
+    if active_route and active_route.get('current_location'):
+        raw_loc = active_route['current_location']
+        if isinstance(raw_loc, str):
+            try:
+                current_location = json.loads(raw_loc)
+            except Exception:
+                current_location = raw_loc
+        else:
+            current_location = raw_loc
+
+    if not route_data and not current_location:
         emit('error', {'message': 'No route data found for the given cart ID'})
         return
 
-    # Send cart-specific state with fetched route data
+    # Send cart-specific state with fetched route data and current location
     emit('initial-state', {
         'cart_id': cart_id,
-        'route': route_data
-    },to=cart_id)
+        'route': route_data,
+        'current_location': current_location,
+        'driver_status': state.driver_status.get(cart_id, 'disconnected'),
+        'is_driver_active': (state.driver_status.get(cart_id, 'disconnected') == 'active') and bool(current_location and isinstance(current_location, dict) and current_location.get('last_update') and (datetime.now(timezone.utc) - datetime.fromisoformat(current_location.get('last_update'))).total_seconds() < 180)
+    }, to=cart_id)
 
 
 # Add new socket event handlers for chat functionality
@@ -893,13 +944,40 @@ def handle_disconnect():
     """Handle client disconnection."""
     user_info = state.connected_users.get(request.sid, {})
     user_id = user_info.get('user_id')
+    role = user_info.get('role')
+    cart_id = user_info.get('cart_id')
+
+    # Remove this disconnecting sid from connected_users first
+    state.connected_users.pop(request.sid, None)
+
+    # Check if there is still another active connection for this driver & cart
+    has_active_driver_connection = any(
+        str(info.get('user_id')) == str(user_id)
+        and info.get('cart_id') == cart_id
+        and info.get('role') == 'driver'
+        for sid, info in state.connected_users.items()
+    )
+
+    if role == 'driver' and cart_id:
+        if not has_active_driver_connection:
+            state.driver_status[cart_id] = 'disconnected'
+            print(f"Driver {user_id} disconnected from cart {cart_id} (no active sockets remaining)")
+            socketio.emit('driver-status', {
+                'cart_id': cart_id,
+                'driver_id': user_id,
+                'status': 'disconnected',
+                'is_active': False,
+                'message': 'Driver disconnected or went offline',
+                'timestamp': datetime.now(timezone.utc).isoformat()
+            }, to=cart_id)
+        else:
+            print(f"Driver {user_id} disconnected socket {request.sid}, but still has active connection for cart {cart_id}")
 
     # Leave all rooms
     if user_id in state.user_rooms:
-        for cart_id in state.user_rooms[user_id]:
-            leave_room(cart_id)
+        for c_id in state.user_rooms[user_id]:
+            leave_room(c_id)
 
-    state.connected_users.pop(request.sid, None)
     print(f"Client disconnected: {request.sid}")
 
 @socketio.on_error_default
@@ -1019,6 +1097,28 @@ def verify_shipment_access():
     if has_access:
         # If authorized, fetch shipment details
         shipment = DatabaseManager.get_shipment_details(cart_id, user_id, role)
+        is_driver_active = False
+        if shipment and shipment.get('current_location'):
+            try:
+                cur_loc = json.loads(shipment['current_location']) if isinstance(shipment['current_location'], str) else shipment['current_location']
+                last_update_str = cur_loc.get('last_update')
+                if last_update_str:
+                    last_time = datetime.fromisoformat(last_update_str)
+                    now_time = datetime.now(timezone.utc)
+                    age_seconds = (now_time - last_time).total_seconds()
+                    # Active only if last telemetry update was within 30 seconds
+                    if age_seconds < 180:
+                        is_driver_active = True
+            except Exception as e:
+                print(f"Error calculating driver activity age: {e}")
+
+        current_driver_status = state.driver_status.get(cart_id, 'disconnected')
+        if current_driver_status != 'active':
+            is_driver_active = False
+        if shipment:
+            shipment['is_driver_active'] = is_driver_active
+            shipment['driver_status'] = current_driver_status
+
         return jsonify({
             "success": True,
             "authorized": True,
@@ -1030,6 +1130,92 @@ def verify_shipment_access():
         "authorized": False,
         "error": "Unauthorized access"
     }),403
+
+@app.route('/api/driver/location-update', methods=['POST'])
+def http_driver_location_update():
+    """Handle HTTP driver location updates (used by background task / headless service)."""
+    try:
+        data = request.get_json() or {}
+        cart_id = data.get('cart_id')
+        driver_id = data.get('driver_id')
+        latitude = data.get('latitude')
+        longitude = data.get('longitude')
+        heading = data.get('heading', 0)
+        speed = data.get('speed', 0)
+        deviation_data = data.get('deviation_data')
+
+        if not cart_id or latitude is None or longitude is None:
+            return jsonify({'success': False, 'message': 'cart_id, latitude, and longitude are required'}), 400
+
+        try:
+            speed_val = float(speed) if speed and float(speed) > 0 else 0.0
+        except (ValueError, TypeError):
+            speed_val = 0.0
+
+        current_location = {
+            'latitude': float(latitude),
+            'longitude': float(longitude),
+            'heading': float(heading or 0),
+            'speed': speed_val,
+            'last_update': data.get('timestamp') or datetime.now(timezone.utc).isoformat()
+        }
+
+        # Broadcast immediately to socket clients
+        socketio.emit('driver-location-update', current_location, to=cart_id)
+        socketio.emit('driver-status', {
+            'cart_id': cart_id,
+            'driver_id': driver_id,
+            'status': 'active',
+            'is_active': True,
+            'message': 'Driver live tracking active',
+            'timestamp': current_location['last_update']
+        }, to=cart_id)
+        state.driver_status[cart_id] = 'active'
+
+        # Asynchronously save to database in background thread
+        threading.Thread(
+            target=_async_save_location,
+            args=(cart_id, current_location, deviation_data),
+            daemon=True
+        ).start()
+
+        return jsonify({'success': True, 'location': current_location}), 200
+
+    except Exception as e:
+        print(f"Error in http_driver_location_update: {str(e)}")
+        print(traceback.format_exc())
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+
+@app.route('/api/driver/tracking-status', methods=['POST'])
+def http_driver_tracking_status():
+    """Handle explicit driver tracking status updates (e.g. stopped, logged out, active)."""
+    try:
+        data = request.get_json() or {}
+        cart_id = data.get('cart_id')
+        driver_id = data.get('driver_id')
+        status = data.get('status', 'stopped')
+        is_active = (status == 'active')
+        state.driver_status[cart_id] = status
+
+        if not cart_id:
+            return jsonify({'success': False, 'message': 'cart_id is required'}), 400
+
+        socketio.emit('driver-status', {
+            'cart_id': cart_id,
+            'driver_id': driver_id,
+            'status': status,
+            'is_active': is_active,
+            'message': f"Courier {status}",
+            'timestamp': datetime.now(timezone.utc).isoformat()
+        }, to=cart_id)
+
+        return jsonify({'success': True, 'status': status, 'is_active': is_active}), 200
+    except Exception as e:
+        print(f"Error in http_driver_tracking_status: {str(e)}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
 
 @app.route('/update_route_status', methods=['POST'])
 def update_route_status():

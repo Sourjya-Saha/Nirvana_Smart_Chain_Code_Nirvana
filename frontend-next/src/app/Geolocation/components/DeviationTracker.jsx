@@ -38,7 +38,7 @@ export default function DeviationTracker({
       });
 
       if (!response.ok) {
-        throw new Error("Failed to fetch route deviation telematics.");
+        throw new Error("Failed to fetch route deviation history.");
       }
 
       const data = await response.json();
@@ -153,10 +153,10 @@ export default function DeviationTracker({
                     isLight ? "text-neutral-900" : "text-white"
                   }`}
                 >
-                  Route Deviation Telematics
+                  Route Deviation Alerts
                 </h3>
                 <p className="text-xs text-neutral-400 mt-0.5">
-                  Consignment Cart #{cartId} &bull; Sensor-tracked route compliance
+                  Package #{cartId} &bull; Off-route tracking and route compliance
                 </p>
               </div>
 
@@ -181,7 +181,7 @@ export default function DeviationTracker({
               {loading ? (
                 <div className="py-12 flex flex-col items-center justify-center text-center space-y-3">
                   <Loader2 className="w-8 h-8 animate-spin text-neutral-400" />
-                  <p className="text-xs text-neutral-500">Querying telemetry for transit anomalies...</p>
+                  <p className="text-xs text-neutral-500">Checking for off-route events...</p>
                 </div>
               ) : error ? (
                 <div
@@ -201,7 +201,7 @@ export default function DeviationTracker({
                     No route deviations recorded
                   </p>
                   <p className="text-xs text-neutral-500 max-w-sm">
-                    The driver remained strictly within the designated corridor throughout this consignment leg.
+                    The driver stayed on the planned route the entire trip.
                   </p>
                 </div>
               ) : deviationData ? (
@@ -226,7 +226,7 @@ export default function DeviationTracker({
                               : "bg-amber-950/60 text-amber-300 border-amber-800"
                           }`}
                         >
-                          Deviation Incident #{parseInt(key) + 1}
+                          Off-Route Alert #{parseInt(key) + 1}
                         </span>
                         <div className="flex items-center gap-1.5 text-xs font-semibold text-rose-500">
                           <span>{entry.start?.distance ? entry.start.distance.toFixed(2) : "0.00"}</span>
@@ -239,7 +239,7 @@ export default function DeviationTracker({
                         <div className="flex items-start gap-2.5">
                           <MapPin className="w-4 h-4 text-amber-500 shrink-0 mt-0.5" />
                           <div className="space-y-0.5 flex-1">
-                            <span className="text-[10px] uppercase font-semibold text-neutral-500">Deviation Origin</span>
+                            <span className="text-[10px] uppercase font-semibold text-neutral-500">Where it started</span>
                             <p
                               className={`font-medium leading-relaxed ${
                                 isLight ? "text-neutral-900" : "text-neutral-200"
@@ -258,7 +258,7 @@ export default function DeviationTracker({
                         <div className="flex items-start gap-2.5">
                           <MapPin className="w-4 h-4 text-emerald-500 shrink-0 mt-0.5" />
                           <div className="space-y-0.5 flex-1">
-                            <span className="text-[10px] uppercase font-semibold text-neutral-500">Corridor Recovery Point</span>
+                            <span className="text-[10px] uppercase font-semibold text-neutral-500">Returned to route</span>
                             <p
                               className={`font-medium leading-relaxed ${
                                 isLight ? "text-neutral-900" : "text-neutral-200"
@@ -293,7 +293,7 @@ export default function DeviationTracker({
                     : "bg-white hover:bg-neutral-200 text-black"
                 }`}
               >
-                Close Telematics
+                Close
               </button>
             </div>
           </div>

@@ -1,6 +1,7 @@
 # See https://help.github.com/articles/ignoring-files/ for more about ignoring files.
 
 # dependencies
+node_modules/
 /node_modules
 /.pnp
 .pnp.js
@@ -10,6 +11,23 @@
 
 # production
 /build
+dist/
+web-build/
+
+# Expo & Mobile
+.expo/
+/android
+/ios
+*.apk
+*.aab
+local.properties
+.gradle/
+.cxx/
+*.orig.*
+*.jks
+*.p8
+*.p12
+*.key
 
 # misc
 .DS_Store
