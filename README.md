@@ -22,16 +22,6 @@ Unlike legacy track-and-trace providers that only monitor internal manufacturing
 
 ## Visual Telemetry & Platform Showcase
 
-### 1. In-Transit Telematics & Dual-View Dispatch Monitoring
-The platform streams continuous driver location telemetry to detect transit tampering or unauthorized offloading before it occurs.
-
-| Real-Time Driver & Console Sync | Central Dispatch Route Oversight |
-|:---:|:---:|
-| ![Live Dispatch Dual Telemetry](docs/images/08-live-dispatch-dual-telemetry.png) | ![Web Shipment Route Tracking](docs/images/09-web-shipment-route-tracking.png) |
-| *Synchronized dispatch telemetry: Live vehicle coordinates, speed, and real-time transit alerts alongside driver turn-by-turn navigation.* | *Full web dispatch overview displaying manufacturer origin, retailer destination, and geofence verification.* |
-
----
-
 ### 2. Enterprise Web Portals (Manufacturer, Wholesaler & Pharmacy)
 
 | Multi-Role Enterprise Gateway | Pharmacy Telemetry & Financial Dashboard |
@@ -45,6 +35,17 @@ The platform streams continuous driver location telemetry to detect transit tamp
 | *Interactive warehouse storage bays, category segmentation, and SKU tracking.* | *Dual-camera QR validation, NSC protocol fee metering, and Razorpay fiat settlement.* |
 
 ---
+
+### 2. In-Transit Telematics & Dual-View Dispatch Monitoring
+The platform streams continuous driver location telemetry to detect transit tampering or unauthorized offloading before it occurs.
+
+| Real-Time Driver & Console Sync | Central Dispatch Route Oversight |
+|:---:|:---:|
+| ![Live Dispatch Dual Telemetry](docs/images/08-live-dispatch-dual-telemetry.png) | ![Web Shipment Route Tracking](docs/images/09-web-shipment-route-tracking.png) |
+| *Synchronized dispatch telemetry: Live vehicle coordinates, speed, and real-time transit alerts alongside driver turn-by-turn navigation.* | *Full web dispatch overview displaying manufacturer origin, retailer destination, and geofence verification.* |
+
+---
+
 
 ### 3. Mobile Ecosystem (Driver Logistics & Consumer Mobile App)
 
