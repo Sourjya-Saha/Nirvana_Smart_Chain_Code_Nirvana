@@ -273,11 +273,11 @@ npx expo start
 *Department of Information Technology, Heritage Institute of Technology, Kolkata*
 
 * **Srinjoy Roy** — *Team Lead & Systems Architect*  
-  Backend systems, database optimization, AI OCR pipeline, and demand-prediction modeling. Led team to 1st place in Smart India Hackathon 2025.
-* **Sourjya Saha** — *Full-Stack & Blockchain Lead*  
-  End-to-end web and mobile system development, microservice integration, and Solidity smart contract engineering.
-* **Aritra Dhar** — *Full-Stack & Mobile Developer*  
-  Web application interface design, cross-platform mobile client integration, and contract testing.
+  Backend architecture, database design, and AI integration, including OCR-based data extraction and demand-sensing model development
+* **Sourjya Saha** — *Full-Stack Web/Mobile Application & Blockchain Developer*  
+  End to end web/mobile application development, frontend–backend integration, and blockchain
+* **Aritra Dhar** — *Web/Mobile Application Developer & Blockchain Developer*  
+  End to end web/mobile application development and blockchain implementation.
 * **Prof. Rituparna Sinha** — *Project Mentor & Institutional Advisor*
 
 **Institutional Incubation Partner:**  
