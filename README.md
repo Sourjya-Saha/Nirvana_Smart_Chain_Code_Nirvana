@@ -1,5 +1,5 @@
-# Nirvana Smart-Chain (NSC)
-### Enterprise Pharmaceutical Provenance, Real-Time IoT Telematics & Hyperlocal Fulfillment Platform
+# Nirvana Health-Chain (NHC)
+### Enterprise Pharmaceutical Provenance, Real-Time Telematics & Hyperlocal Fulfillment Platform
 
 [![YUKTI 2025 Finalist](https://img.shields.io/badge/YUKTI%20Innovation%20Challenge%202025-Finalist%20%28IR2024--924421%29-blue?style=flat-square)](https://mic.gov.in)
 [![SIH 2025 Winner](https://img.shields.io/badge/Smart%20India%20Hackathon%202025-1st%20Place%20Winner%20%28PS%20SIH25057%29-green?style=flat-square)](https://sih.gov.in)
@@ -11,7 +11,7 @@
 
 ## Executive Overview
 
-**Nirvana Smart-Chain (NSC)** is an integrated pharmaceutical custody and supply chain verification platform. It solves medicine counterfeiting, cold-chain violations, and inventory fragmentation by unifying **factory serialization**, **in-transit route telematics**, **pharmacy warehouse management**, and **patient fulfillment** into a single cryptographic record.
+**Nirvana Health-Chain (NHC)** is an integrated pharmaceutical custody and supply chain verification platform. It solves medicine counterfeiting, cold-chain violations, and inventory fragmentation by unifying **factory serialization**, **in-transit route telematics**, **pharmacy warehouse management**, and **patient fulfillment** into a single cryptographic record.
 
 Unlike legacy track-and-trace providers that only monitor internal manufacturing packaging lines, or centralized quick-commerce operators that bypass brick-and-mortar pharmacies using speculative dark stores, Nirvana operates as a **hyperlocal enablement layer for India's 12.4 lakh licensed retail chemists**. It combines code-enforced blockchain custody hand-offs, 4-second GPS telemetry with automated deviation alerts, and an AI-driven prescription OCR engine to bring instant, verified fulfillment to patients.
 
