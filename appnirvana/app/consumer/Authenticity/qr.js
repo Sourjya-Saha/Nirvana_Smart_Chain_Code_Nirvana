@@ -80,7 +80,7 @@ export default function Qrdetails({ route, navigation }) {
 
       console.log("📤 Sending request to backend with photo:", photoPath);
 
-      const response = await fetch('http://127.0.0.1:5000/decode_qrr', {
+      const response = await fetch('http://192.168.29.173:5000/decode_qrr', {
         method: 'POST',
         headers: {
           'Content-Type': 'multipart/form-data',

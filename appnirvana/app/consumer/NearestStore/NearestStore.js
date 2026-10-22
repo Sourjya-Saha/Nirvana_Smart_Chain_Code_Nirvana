@@ -2,28 +2,36 @@ import React, { useRef, useEffect, useState } from 'react';
 import {
   View,
   Text,
-  Button,
   Alert,
   TouchableOpacity,
   StyleSheet,
-  Platform,
   ScrollView,
   Animated,
+  StatusBar,
+  ActivityIndicator,
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import DropDownPicker from 'react-native-dropdown-picker';
 import * as Location from 'expo-location';
 import { Ionicons } from '@expo/vector-icons';
+import Theme from '../../../constants/theme';
+import AuroraCard from '../../../components/AuroraCard';
+import { SkeletonCard } from '../../../components/SkeletonLoader';
+import AmbientAura from '../../../components/AmbientAura';
 
 export default function NearestStore({ route, navigation }) {
-  const { uniqueid } = route.params;
-  const [Stores, setStores] = useState([]);
+  const { uniqueid } = route.params || {};
+  const [stores, setStores] = useState([]);
   const [location, setLocation] = useState({ latitude: null, longitude: null });
   const [open, setOpen] = useState(false);
-  const [value, setValue] = useState(null);
+  const [value, setValue] = useState('5');
+  const [loading, setLoading] = useState(false);
+  const [locating, setLocating] = useState(false);
+
   const [items, setItems] = useState([
-    { label: '5km', value: '5' },
-    { label: '10km', value: '10' },
-    { label: '15km', value: '15' },
+    { label: 'Within 5 km', value: '5' },
+    { label: 'Within 10 km', value: '10' },
+    { label: 'Within 15 km', value: '15' },
   ]);
 
   const fadeAnim = useRef(new Animated.Value(0)).current;
@@ -31,20 +39,28 @@ export default function NearestStore({ route, navigation }) {
   useEffect(() => {
     Animated.timing(fadeAnim, {
       toValue: 1,
-      duration: 1000,
+      duration: 400,
       useNativeDriver: true,
     }).start();
-  }, [fadeAnim]);
 
-  const sendLocation = async () => {
+    fetchLocation();
+  }, []);
+
+  const sendLocation = async (selectedRadius, coords) => {
+    const lat = coords?.latitude ?? location.latitude;
+    const lon = coords?.longitude ?? location.longitude;
+
+    if (!lat || !lon) return;
+
+    setLoading(true);
     const data = {
-      radius: value,
-      lat: location.latitude,
-      lon: location.longitude,
+      radius: selectedRadius ?? value,
+      lat,
+      lon,
     };
 
     try {
-      const response = await fetch('http://127.0.0.1:5000/get_retailers_within_radius', {
+      const response = await fetch('http://192.168.29.173:5000/get_retailers_within_radius', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(data),
@@ -59,80 +75,172 @@ export default function NearestStore({ route, navigation }) {
         }));
         setStores(storesArray);
       } else {
-        Alert.alert('Error', result.error || 'Failed to fetch stores.');
+        Alert.alert('Notice', result.error || 'No pharmacies found in radius.');
       }
     } catch (error) {
-      Alert.alert('Error', 'An error occurred. Please try again.');
+      console.error('Error fetching retailers:', error);
+      Alert.alert('Connection Error', 'Unable to reach the store registry.');
+    } finally {
+      setLoading(false);
     }
   };
 
-  const requestLocationPermission = async () => {
-    const { status } = await Location.requestForegroundPermissionsAsync();
-    return status === 'granted';
-  };
-
   const fetchLocation = async () => {
-    const hasPermission = await requestLocationPermission();
-    if (!hasPermission) return;
+    setLocating(true);
+    try {
+      const { status } = await Location.requestForegroundPermissionsAsync();
+      if (status !== 'granted') {
+        setLocation({ latitude: null, longitude: null });
+        setStores([]);
+        Alert.alert(
+          'Location Required',
+          'GPS location access is required to detect genuine licensed pharmacies near your position. Please grant location permission in device settings.'
+        );
+        return;
+      }
 
-    const location = await Location.getCurrentPositionAsync({});
-    setLocation({
-      latitude: location.coords.latitude,
-      longitude: location.coords.longitude,
-    });
+      const loc = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
+      const current = {
+        latitude: loc.coords.latitude,
+        longitude: loc.coords.longitude,
+      };
+      setLocation(current);
+      sendLocation(value, current);
+    } catch (err) {
+      setLocation({ latitude: null, longitude: null });
+      setStores([]);
+      Alert.alert(
+        'GPS Signal Unavailable',
+        'Unable to detect your live GPS position. Please ensure location services are enabled on your device.'
+      );
+    } finally {
+      setLocating(false);
+    }
   };
 
-  const fetchMockLocation = () => {
-    setLocation({
-      latitude: 22.503415,
-      longitude: 88.3497173,
-    });
-  };
+  const insets = useSafeAreaInsets();
 
   return (
     <View style={styles.container}>
-      <Animated.View style={[styles.header, { opacity: fadeAnim }]}>
-        <Text style={styles.title}>Nearest Store</Text>
-      </Animated.View>
+      <StatusBar barStyle="dark-content" backgroundColor="transparent" translucent />
 
-      <DropDownPicker
-        open={open}
-        value={value}
-        items={items}
-        onChangeValue={(val) => {
-          setValue(val);
-          sendLocation();
-        }}
-        setOpen={setOpen}
-        setValue={setValue}
-        setItems={setItems}
-        placeholder="Select Distance"
-        style={styles.dropdown}
-        dropDownContainerStyle={styles.dropdownContainer}
-        placeholderStyle={{ color: '#0a47f0' }}
-        labelStyle={{ color: '#0a47f0' }}
-        tickIconStyle={{ display: 'none' }}
-      />
+      {/* ── Ambient Header Aura ── */}
+      <AmbientAura variant="header" />
 
-      <View style={styles.locationContainer}>
-        <Ionicons name="location-sharp" size={24} color="#0a47f0" />
-        <Text style={styles.locationText}>
-          Latitude: {location.latitude}, Longitude: {location.longitude}
-        </Text>
+      {/* Top iOS Header */}
+      <View style={[styles.topHeader, { paddingTop: insets.top + 8 }]}>
+        <TouchableOpacity
+          style={styles.backBtn}
+          onPress={() => navigation.goBack()}
+          activeOpacity={0.7}
+        >
+          <Ionicons name="chevron-back" size={24} color={Theme.colors.primary} />
+        </TouchableOpacity>
+
+        <View style={styles.headerTitleWrap}>
+          <Text style={styles.headerTitle}>Nearest Pharmacies</Text>
+        </View>
+
+        <View style={{ width: 38 }} />
       </View>
 
-      <TouchableOpacity style={styles.button} onPress={fetchLocation}>
-        <Text style={styles.buttonText}>Fetch Location</Text>
-      </TouchableOpacity>
+      <ScrollView
+        contentContainerStyle={[styles.scrollContent, { paddingBottom: insets.bottom + 40 }]}
+        nestedScrollEnabled={true}
+        showsVerticalScrollIndicator={false}
+      >
+        {/* Soft Skeuomorphic Location Card */}
+        <Animated.View style={{ opacity: fadeAnim }}>
+          <AuroraCard aura="blue" style={styles.locationCard}>
+            <View style={styles.locationHeaderRow}>
+              <View style={styles.gpsIconCircle}>
+                <Ionicons name="navigate" size={18} color={Theme.colors.primary} />
+              </View>
+              <View style={styles.locationTextWrap}>
+                <Text style={styles.locationCardTitle}>Detected Location</Text>
+                <Text style={styles.locationCoords}>
+                  {locating
+                    ? 'Locating via GPS...'
+                    : location.latitude && location.longitude
+                    ? `${location.latitude.toFixed(4)}° N, ${location.longitude.toFixed(4)}° E`
+                    : 'GPS permission required'}
+                </Text>
+              </View>
+              <TouchableOpacity
+                style={styles.refreshLocBtn}
+                onPress={fetchLocation}
+                disabled={locating}
+                activeOpacity={0.8}
+              >
+                {locating ? (
+                  <ActivityIndicator size="small" color={Theme.colors.primary} />
+                ) : (
+                  <Ionicons name="refresh" size={18} color={Theme.colors.primary} />
+                )}
+              </TouchableOpacity>
+            </View>
+          </AuroraCard>
+        </Animated.View>
 
-      <ScrollView contentContainerStyle={styles.storeList}>
-        {Stores.length === 0 ? (
-          <Text style={styles.noStores}>No Nearby Stores</Text>
+        {/* Radius Filter DropDown */}
+        <View style={styles.filterSection}>
+          <Text style={styles.sectionLabel}>SEARCH RADIUS</Text>
+          <DropDownPicker
+            open={open}
+            value={value}
+            items={items}
+            onChangeValue={(val) => {
+              setValue(val);
+              sendLocation(val);
+            }}
+            setOpen={setOpen}
+            setValue={setValue}
+            setItems={setItems}
+            placeholder="Select Radius"
+            style={styles.dropdown}
+            dropDownContainerStyle={styles.dropdownContainer}
+            placeholderStyle={{ color: Theme.colors.inkMuted48, fontSize: 14 }}
+            labelStyle={{ color: Theme.colors.ink, fontWeight: '600', fontSize: 14 }}
+            textStyle={{ fontSize: 14 }}
+            zIndex={3000}
+            zIndexInverse={1000}
+          />
+        </View>
+
+        {/* Results Header */}
+        <View style={styles.resultsHeaderRow}>
+          <Text style={styles.resultsTitle}>
+            Available Pharmacies ({stores.length})
+          </Text>
+        </View>
+
+        {/* Store List */}
+        {loading ? (
+          <View style={{ gap: 8 }}>
+            <SkeletonCard />
+            <SkeletonCard />
+          </View>
+        ) : !location.latitude ? (
+          <View style={styles.emptyContainer}>
+            <Ionicons name="location-outline" size={44} color={Theme.colors.primary} />
+            <Text style={styles.emptyTitle}>Location Access Required</Text>
+            <Text style={styles.emptySub}>
+              Please grant GPS permissions and tap the refresh icon to search verified licensed pharmacies near you.
+            </Text>
+          </View>
+        ) : stores.length === 0 ? (
+          <View style={styles.emptyContainer}>
+            <Ionicons name="storefront-outline" size={44} color={Theme.colors.inkMuted48} />
+            <Text style={styles.emptyTitle}>No Pharmacies in Selected Radius</Text>
+            <Text style={styles.emptySub}>
+              Try expanding the search radius to 10 km or 15 km to locate active pharmacies.
+            </Text>
+          </View>
         ) : (
-          Stores.map((store, index) => (
+          stores.map((store, index) => (
             <TouchableOpacity
-              key={index}
-              style={styles.storeItem}
+              key={store.generated_unique_id || `store-${index}`}
+              style={styles.storeCard}
               onPress={() =>
                 navigation.navigate('Store', {
                   uniqueid,
@@ -140,16 +248,31 @@ export default function NearestStore({ route, navigation }) {
                   storeid: store.generated_unique_id,
                 })
               }
+              activeOpacity={0.78}
             >
-              <Text style={styles.storeName}>{store.name}</Text>
-              <View style={styles.storeDetailsContainer}>
-                <Ionicons name="location-outline" size={18} color="#495057" />
-                <Text style={styles.storeDetails}>Distance: {store.distance_km} km</Text>
+              <View style={styles.storeCardTop}>
+                <View style={styles.storeIconWrap}>
+                  <Ionicons name="storefront" size={20} color={Theme.colors.primary} />
+                </View>
+                <View style={styles.storeInfoWrap}>
+                  <View style={styles.storeBadgeRow}>
+                    <View style={styles.distanceBadge}>
+                      <Ionicons name="navigate-outline" size={11} color={Theme.colors.primary} />
+                      <Text style={styles.distanceBadgeText}>{store.distance_km} km away</Text>
+                    </View>
+                  </View>
+                  <Text style={styles.storeName}>{store.name}</Text>
+                </View>
+                <Ionicons name="chevron-forward" size={16} color={Theme.colors.inkMuted48} />
               </View>
-              {/* <View style={styles.storeDetailsContainer}>
-                <Ionicons name="id-card-outline" size={18} color="#495057" />
-                <Text style={styles.storeDetails}>ID: {store.generated_unique_id}</Text>
-              </View> */}
+
+              <View style={styles.storeCardBottom}>
+                <View style={styles.stockStatus}>
+                  <View style={styles.onlineDot} />
+                  <Text style={styles.stockStatusText}>In stock & verified</Text>
+                </View>
+                <Text style={styles.viewInventoryLink}>View inventory</Text>
+              </View>
             </TouchableOpacity>
           ))
         )}
@@ -161,89 +284,216 @@ export default function NearestStore({ route, navigation }) {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#f8f9fa',
-    paddingHorizontal: 20,
+    backgroundColor: Theme.colors.canvasParchment,
   },
-  header: {
+  topHeader: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
-    marginVertical: 20,
+    justifyContent: 'space-between',
+    paddingHorizontal: 16,
+    paddingTop: 8,
+    paddingBottom: 12,
+    backgroundColor: Theme.colors.canvas,
+    borderBottomWidth: 1,
+    borderBottomColor: Theme.colors.hairline,
   },
-  title: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    color: '#333',
-    textAlign: 'center',
+  backBtn: {
+    width: 38,
+    height: 38,
+    borderRadius: 19,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  headerTitleWrap: {
+    flex: 1,
+    alignItems: 'center',
+  },
+  headerTitle: {
+    fontSize: 17,
+    fontWeight: '600',
+    fontFamily: 'Inter_400Regular',
+    color: Theme.colors.ink,
+    letterSpacing: Theme.typography.tracking.normal,
+  },
+  scrollContent: {
+    paddingHorizontal: 20,
+    paddingTop: 16,
+    paddingBottom: 40,
+  },
+  locationCard: {
+    padding: 16,
+    marginBottom: 16,
+  },
+  locationHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  gpsIconCircle: {
+    width: 42,
+    height: 42,
+    borderRadius: 21,
+    backgroundColor: '#ffffff',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 12,
+    ...Theme.shadows.skeuoCircle,
+  },
+  locationTextWrap: {
+    flex: 1,
+  },
+  locationCardTitle: {
+    fontSize: 14,
+    fontWeight: '400',
+    fontFamily: 'Inter_400Regular',
+    color: Theme.colors.ink,
+  },
+  locationCoords: {
+    fontSize: 12,
+    fontFamily: 'Inter_400Regular',
+    color: 'rgba(100, 116, 139, 0.78)',
+    marginTop: 2,
+  },
+  refreshLocBtn: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: '#ffffff',
+    justifyContent: 'center',
+    alignItems: 'center',
+    ...Theme.shadows.skeuoCircle,
+  },
+  filterSection: {
+    marginBottom: 16,
+  },
+  sectionLabel: {
+    fontSize: 11,
+    fontWeight: '400',
+    fontFamily: 'Inter_400Regular',
+    color: 'rgba(100, 116, 139, 0.78)',
+    letterSpacing: Theme.typography.tracking.caps,
+    marginBottom: 8,
+    marginLeft: 2,
   },
   dropdown: {
-    width: '100%',
-    borderWidth: 1,
-    borderColor: '#ccc',
-    borderRadius: 5,
-    backgroundColor: '#fff',
+    backgroundColor: Theme.colors.canvas,
+    borderColor: 'rgba(255, 255, 255, 0.95)',
+    borderWidth: 1.5,
+    borderRadius: Theme.radius.lg,
+    minHeight: 48,
+    ...Theme.shadows.skeuoCard,
   },
   dropdownContainer: {
-    borderWidth: 1,
-    borderColor: '#ccc',
-    borderRadius: 5,
+    backgroundColor: Theme.colors.canvas,
+    borderColor: Theme.colors.hairline,
+    borderRadius: Theme.radius.lg,
+    ...Theme.shadows.cardHover,
   },
-  locationContainer: {
+  resultsHeaderRow: {
+    marginBottom: 12,
+  },
+  resultsTitle: {
+    fontSize: 17,
+    fontWeight: '400',
+    fontFamily: 'Inter_400Regular',
+    color: Theme.colors.ink,
+    letterSpacing: Theme.typography.tracking.tight,
+  },
+  emptyContainer: {
+    alignItems: 'center',
+    paddingVertical: 50,
+    gap: 6,
+  },
+  emptyTitle: {
+    fontSize: 16,
+    fontWeight: '400',
+    fontFamily: 'Inter_400Regular',
+    color: Theme.colors.ink,
+    marginTop: 8,
+  },
+  emptySub: {
+    fontSize: 13,
+    fontFamily: 'Inter_400Regular',
+    color: 'rgba(100, 116, 139, 0.78)',
+    textAlign: 'center',
+    paddingHorizontal: 20,
+  },
+  storeCard: {
+    backgroundColor: Theme.colors.canvas,
+    borderRadius: Theme.radius.xl, // 26px squircle
+    padding: 16,
+    borderWidth: 1.5,
+    borderColor: 'rgba(255, 255, 255, 0.9)',
+    ...Theme.shadows.skeuoCard,
+    marginBottom: 12,
+  },
+  storeCardTop: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginTop: 20,
   },
-  locationText: {
-    marginLeft: 10,
-    fontSize: 16,
-    color: '#333',
-  },
-  button: {
-    backgroundColor: '#007bff',
-    borderRadius: 5,
-    paddingVertical: 10,
-    paddingHorizontal: 20,
-    alignItems: 'center',
+  storeIconWrap: {
+    width: 44,
+    height: 44,
+    borderRadius: Theme.radius.md,
+    backgroundColor: '#e8f0fb',
     justifyContent: 'center',
-    marginTop: 20,
+    alignItems: 'center',
+    marginRight: 14,
+    ...Theme.shadows.skeuoCircle,
   },
-  buttonText: {
-    color: '#fff',
-    fontSize: 16,
-    fontWeight: 'bold',
+  storeInfoWrap: {
+    flex: 1,
   },
-  noStores: {
-    marginTop: 20,
-    color: '#777',
-    fontSize: 16,
-    textAlign: 'center',
+  storeBadgeRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 3,
   },
-  storeList: {
-    marginTop: 20,
-    width: '100%',
+  distanceBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
   },
-  storeItem: {
-    backgroundColor: '#fff',
-    padding: 15,
-    marginVertical: 10,
-    borderRadius: 5,
-    borderWidth: 1,
-    borderColor: '#ccc',
+  distanceBadgeText: {
+    fontSize: 12,
+    fontWeight: '400',
+    fontFamily: 'Inter_400Regular',
+    color: Theme.colors.primary,
   },
   storeName: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    color: '#333',
-    marginBottom: 10,
+    fontSize: 16,
+    fontWeight: '400',
+    fontFamily: 'Inter_400Regular',
+    color: Theme.colors.ink,
   },
-  storeDetailsContainer: {
+  storeCardBottom: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 5,
+    justifyContent: 'space-between',
+    borderTopWidth: 1,
+    borderTopColor: Theme.colors.hairline,
+    paddingTop: 12,
+    marginTop: 12,
   },
-  storeDetails: {
-    fontSize: 14,
-    color: '#777',
-    marginLeft: 5,
+  stockStatus: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  onlineDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: Theme.colors.success,
+  },
+  stockStatusText: {
+    fontSize: 12,
+    fontFamily: 'Inter_400Regular',
+    color: 'rgba(100, 116, 139, 0.78)',
+  },
+  viewInventoryLink: {
+    fontSize: 13,
+    fontWeight: '600',
+    fontFamily: 'Inter_400Regular',
+    color: Theme.colors.primary,
   },
 });

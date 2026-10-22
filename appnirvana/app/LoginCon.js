@@ -6,347 +6,464 @@ import {
   TouchableOpacity,
   StyleSheet,
   Animated,
-  Dimensions,
   Alert,
   KeyboardAvoidingView,
   Platform,
+  StatusBar,
+  ActivityIndicator,
+  Dimensions,
+  Easing,
+  ScrollView,
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
-import { MaterialCommunityIcons } from '@expo/vector-icons';
-import Constants from 'expo-constants';
+import { Ionicons } from '@expo/vector-icons';
+import Theme from '../constants/theme';
+import TactileButton from '../components/TactileButton';
+import AmbientAura from '../components/AmbientAura';
 
-const { width } = Dimensions.get('window');
+const { width: W } = Dimensions.get('window');
 
 export default function LoginCon() {
+  const insets = useSafeAreaInsets();
   const navigation = useNavigation();
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [repeatPassword, setRepeatPassword] = useState('');
-  const [userType, setUserType] = useState('Consumer');
-  const [option, setOption] = useState(1);
+  const [userType] = useState('Consumer');
+  const [option, setOption] = useState(1); // 1=Sign In, 2=Sign Up, 3=Forgot
   const [showPassword, setShowPassword] = useState(false);
-  const translateYAnim = useRef(new Animated.Value(0)).current;
-  const fadeAnim = useRef(new Animated.Value(1)).current;
-  const [message, setMessage] = useState('');
-  const [uniqueid, setuniqueid] = useState('');
+  const [isLoading, setIsLoading] = useState(false);
+
+  const screenFade = useRef(new Animated.Value(0)).current;
+  const cardSlide  = useRef(new Animated.Value(24)).current;
+  const formFade   = useRef(new Animated.Value(1)).current;
 
   useEffect(() => {
-    let targetValue = 0;
-    if (option === 2) targetValue = -39;
-    if (option === 3) targetValue = -80;
-
     Animated.parallel([
-      Animated.timing(translateYAnim, {
-        toValue: targetValue,
-        duration: 400,
-        useNativeDriver: true,
+      Animated.timing(screenFade, {
+        toValue: 1, duration: 420,
+        easing: Easing.out(Easing.quad), useNativeDriver: true,
       }),
-      Animated.sequence([
-        Animated.timing(fadeAnim, {
-          toValue: 0,
-          duration: 200,
-          useNativeDriver: true,
-        }),
-        Animated.timing(fadeAnim, {
-          toValue: 1,
-          duration: 200,
-          useNativeDriver: true,
-        }),
-      ]),
+      Animated.spring(cardSlide, {
+        toValue: 0, speed: 14, bounciness: 2, useNativeDriver: true,
+      }),
     ]).start();
-  }, [option]);
+  }, []);
 
-  const handleSignUp = async () => {
-    if (password !== repeatPassword) {
-      Alert.alert('Error', 'Passwords do not match');
-      return;
-    }
-
-    const data = {
-      username: username,
-      password: password,
-      user_type: userType,
-    };
-
-    try {
-      const response = await fetch('http://127.0.0.1:5000/signup_app', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(data),
-      });
-
-      const result = await response.json();
-
-      if (response.status === 201) {
-        setMessage(result.message);
-        Alert.alert('Success', result.message);
-        navigation.navigate('HomeCon', { uniqueid: result.unique_user_id });
-      } else {
-        setMessage(result.error);
-        Alert.alert('Error', result.error);
-      }
-    } catch (error) {
-      console.error('Signup error:', error);
-      setMessage('An error occurred. Please try again.');
-      Alert.alert('Error', 'An error occurred. Please try again.');
-    }
+  const switchTab = (tab) => {
+    Animated.sequence([
+      Animated.timing(formFade, { toValue: 0, duration: 90, useNativeDriver: true }),
+      Animated.timing(formFade, { toValue: 1, duration: 180, useNativeDriver: true }),
+    ]).start();
+    setOption(tab);
+    setPassword('');
+    setRepeatPassword('');
   };
 
   const handleSignIn = async () => {
-    const data = {
-      username: username,
-      password: password,
-    };
-
+    if (!username.trim() || !password.trim()) {
+      Alert.alert('Required', 'Please enter your username and password.');
+      return;
+    }
+    setIsLoading(true);
     try {
-      const response = await fetch('http://127.0.0.1:5000/login_app', {
+      const response = await fetch('http://192.168.29.173:5000/login_app', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(data),
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ username: username.trim(), password }),
       });
-
       const result = await response.json();
-
       if (response.status === 200) {
-        setMessage(result.message);
-        setuniqueid(result.unique_user_id);
         navigation.navigate('HomeCon', { uniqueid: result.unique_user_id });
       } else {
-        setMessage(result.error);
-        Alert.alert('Error', result.error);
+        Alert.alert('Sign In Failed', result.error || 'Invalid credentials. Please try again.');
       }
-    } catch (error) {
-      console.error('Login error:', error);
-      setMessage('An error occurred. Please try again.');
-      Alert.alert('Error', `Fetch error: ${error.message}`);
+    } catch {
+      Alert.alert('Connection Error', 'Unable to reach server. Please check your connection.');
+    } finally {
+      setIsLoading(false);
     }
   };
 
-  const renderInputIcon = (name) => (
-    <MaterialCommunityIcons name={name} size={24} color="#6B7280" style={styles.inputIcon} />
-  );
+  const handleSignUp = async () => {
+    if (!username.trim() || !password.trim()) {
+      Alert.alert('Required', 'Please fill in all fields.');
+      return;
+    }
+    if (password !== repeatPassword) {
+      Alert.alert('Password Mismatch', 'Passwords do not match. Please try again.');
+      return;
+    }
+    setIsLoading(true);
+    try {
+      const response = await fetch('http://192.168.29.173:5000/signup_app', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ username: username.trim(), password, user_type: userType }),
+      });
+      const result = await response.json();
+      if (response.status === 201) {
+        Alert.alert('Account Created', result.message || 'Your account is ready.');
+        navigation.navigate('HomeCon', { uniqueid: result.unique_user_id });
+      } else {
+        Alert.alert('Sign Up Failed', result.error || 'Could not create account. Please try again.');
+      }
+    } catch {
+      Alert.alert('Connection Error', 'Unable to reach server. Please check your connection.');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleForgot = () => {
+    Alert.alert('Password Reset', 'Password reset instructions will be sent to your registered contact.');
+  };
+
+  const tabs = ['Sign In', 'Sign Up', 'Forgot'];
+  const primaryAction = option === 1 ? handleSignIn : option === 2 ? handleSignUp : handleForgot;
+  const primaryLabel  = option === 1 ? 'Sign In' : option === 2 ? 'Create Account' : 'Send Reset Link';
 
   return (
-    <KeyboardAvoidingView 
-      behavior={Platform.OS === "ios" ? "padding" : "height"}
-      style={styles.container}
-    >
-      <View style={styles.background}>
-        <View style={styles.contentContainer}>
-          {/* Header */}
+    <View style={styles.container}>
+      <StatusBar barStyle="dark-content" backgroundColor="transparent" translucent />
+
+      {/* ── Ethereal Aurora Ambience ── */}
+      <AmbientAura variant="fullscreen" />
+
+      {/* ── Top Bar with Safe Inset ── */}
+      <Animated.View style={[styles.topBar, { paddingTop: insets.top + 8, opacity: screenFade }]}>
+        <TouchableOpacity
+          style={styles.backBtn}
+          onPress={() => navigation.goBack()}
+          activeOpacity={0.7}
+        >
+          <Ionicons name="chevron-back" size={22} color={Theme.colors.ink} />
+        </TouchableOpacity>
+      </Animated.View>
+
+      <KeyboardAvoidingView
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        style={styles.keyboard}
+      >
+        <ScrollView
+          contentContainerStyle={[
+            styles.scrollContent,
+            { paddingBottom: insets.bottom + 24 },
+          ]}
+          keyboardShouldPersistTaps="handled"
+          showsVerticalScrollIndicator={false}
+        >
+          <Animated.View
+            style={[
+              styles.formCard,
+              {
+                opacity: screenFade,
+                transform: [{ translateY: cardSlide }],
+              },
+            ]}
+          >
+          {/* ── Top bevel ── */}
+          <View style={styles.cardBevel} />
+
+          {/* ── Header ── */}
           <View style={styles.header}>
-            <Animated.View
-              style={[
-                styles.headerHeadings,
-                { 
-                  transform: [{ translateY: translateYAnim }],
-                  opacity: fadeAnim 
-                }
-              ]}
-            >
-              <Text style={styles.headerHeadingSpan}>Welcome Back</Text>
-              <Text style={styles.headerHeadingSpan}>Create Account</Text>
-              <Text style={styles.headerHeadingSpan}>Reset Password</Text>
-            </Animated.View>
+            <Text style={styles.title}>
+              {option === 1 ? 'Welcome back' : option === 2 ? 'Create account' : 'Reset password'}
+            </Text>
+            <Text style={styles.subtitle}>
+              {option === 1
+                ? 'Sign in to access your prescriptions and orders.'
+                : option === 2
+                ? 'Join to order medicines and track deliveries.'
+                : "We'll help you recover access to your account."}
+            </Text>
           </View>
 
-          {/* Options */}
-          <View style={styles.options}>
-            {['Sign In', 'Sign Up', 'Forgot'].map((text, index) => (
-              <TouchableOpacity 
-                key={text}
-                onPress={() => setOption(index + 1)}
-                style={[
-                  styles.optionButton,
-                  option === index + 1 && styles.activeOptionButton
-                ]}
-              >
-                <Text style={[
-                  styles.optionText,
-                  option === index + 1 && styles.activeOptionText
-                ]}>
-                  {text}
-                </Text>
-              </TouchableOpacity>
-            ))}
-          </View>
-
-          {/* Form */}
-          <Animated.View style={[styles.accountForm, { opacity: fadeAnim }]}>
-            <View style={styles.formFields}>
-              <View style={styles.inputContainer}>
-                {renderInputIcon('account')}
-                <TextInput
-                  style={styles.input}
-                  placeholder="Username or Number"
-                  value={username}
-                  onChangeText={setUsername}
-                  placeholderTextColor="#9CA3AF"
-                />
-              </View>
-
-              <View style={styles.inputContainer}>
-                {renderInputIcon('lock')}
-                <TextInput
-                  style={styles.input}
-                  placeholder="Password"
-                  secureTextEntry={!showPassword}
-                  placeholderTextColor="#9CA3AF"
-                  value={password}
-                  onChangeText={setPassword}
-                />
-                <TouchableOpacity onPress={() => setShowPassword(!showPassword)}>
-                  <MaterialCommunityIcons
-                    name={showPassword ? 'eye-off' : 'eye'}
-                    size={24}
-                    color="#6B7280"
-                  />
+          {/* ── iOS Segmented Control ── */}
+          <View style={styles.segControl}>
+            {tabs.map((tab, i) => {
+              const active = option === i + 1;
+              return (
+                <TouchableOpacity
+                  key={tab}
+                  style={[styles.segBtn, active && styles.segBtnActive]}
+                  onPress={() => switchTab(i + 1)}
+                  activeOpacity={0.75}
+                >
+                  {active && <View style={styles.segActiveBevel} />}
+                  <Text style={[styles.segText, active && styles.segTextActive]}>
+                    {tab}
+                  </Text>
                 </TouchableOpacity>
-              </View>
+              );
+            })}
+          </View>
 
-              {option === 2 && (
-                <View style={styles.inputContainer}>
-                  {renderInputIcon('lock-check')}
+          {/* ── Form Fields ── */}
+          <Animated.View style={{ opacity: formFade, gap: 14 }}>
+            {/* Username */}
+            <InputField
+              label={option === 3 ? 'Username or phone' : 'Username'}
+              icon="person-outline"
+              placeholder="Enter username"
+              value={username}
+              onChangeText={setUsername}
+              autoCapitalize="none"
+              autoCorrect={false}
+            />
+
+            {/* Password */}
+            {option !== 3 && (
+              <View style={styles.inputWrap}>
+                <Text style={styles.inputLabel}>Password</Text>
+                <View style={styles.inputField}>
+                  <View style={styles.inputBevel} />
+                  <Ionicons name="lock-closed-outline" size={18} color={Theme.colors.inkMuted48} style={styles.inputIcon} />
                   <TextInput
-                    style={styles.input}
-                    placeholder="Repeat Password"
+                    style={styles.textInput}
+                    placeholder="Enter password"
+                    placeholderTextColor={Theme.colors.inkMuted48}
                     secureTextEntry={!showPassword}
-                    placeholderTextColor="#9CA3AF"
-                    value={repeatPassword}
-                    onChangeText={setRepeatPassword}
+                    value={password}
+                    onChangeText={setPassword}
                   />
+                  <TouchableOpacity onPress={() => setShowPassword(!showPassword)} style={styles.eyeBtn}>
+                    <Ionicons
+                      name={showPassword ? 'eye-off-outline' : 'eye-outline'}
+                      size={19}
+                      color={Theme.colors.inkMuted48}
+                    />
+                  </TouchableOpacity>
                 </View>
-              )}
-            </View>
+              </View>
+            )}
 
-            <TouchableOpacity
-              style={styles.submitButton}
-              onPress={option === 1 ? handleSignIn : handleSignUp}
+            {/* Confirm Password */}
+            {option === 2 && (
+              <InputField
+                label="Confirm password"
+                icon="lock-closed-outline"
+                placeholder="Repeat password"
+                value={repeatPassword}
+                onChangeText={setRepeatPassword}
+                secureTextEntry={!showPassword}
+              />
+            )}
+
+            {/* Primary CTA */}
+            <TactileButton
+              title={isLoading ? 'Please wait...' : primaryLabel}
+              variant="primary"
+              size="large"
+              onPress={primaryAction}
+              disabled={isLoading}
+              style={{ marginTop: 4 }}
             >
-              <Text style={styles.submitButtonText}>
-                {option === 1 ? 'Sign In' : option === 2 ? 'Sign Up' : 'Reset Password'}
-              </Text>
-            </TouchableOpacity>
+              {isLoading ? (
+                <ActivityIndicator color="#fff" size="small" />
+              ) : undefined}
+            </TactileButton>
           </Animated.View>
-        </View>
+
+          {/* ── Footer ── */}
+          <View style={styles.footer}>
+            <Ionicons name="shield-checkmark-outline" size={13} color={Theme.colors.inkMuted48} />
+            <Text style={styles.footerText}>Secure clinical data encryption</Text>
+          </View>
+        </Animated.View>
+        </ScrollView>
+      </KeyboardAvoidingView>
+    </View>
+  );
+}
+
+// ─── Reusable InputField ───────────────────────────────────────────────────────
+function InputField({
+  label, icon, placeholder, value, onChangeText,
+  secureTextEntry, autoCapitalize, autoCorrect,
+}) {
+  return (
+    <View style={styles.inputWrap}>
+      <Text style={styles.inputLabel}>{label}</Text>
+      <View style={styles.inputField}>
+        <View style={styles.inputBevel} />
+        <Ionicons name={icon} size={18} color={Theme.colors.inkMuted48} style={styles.inputIcon} />
+        <TextInput
+          style={styles.textInput}
+          placeholder={placeholder}
+          placeholderTextColor={Theme.colors.inkMuted48}
+          value={value}
+          onChangeText={onChangeText}
+          secureTextEntry={secureTextEntry}
+          autoCapitalize={autoCapitalize}
+          autoCorrect={autoCorrect}
+        />
       </View>
-    </KeyboardAvoidingView>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-  },
-  background: {
-    flex: 1,
-    backgroundColor: '#4F46E5',
-  },
-  contentContainer: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    padding: 20,
-    backgroundColor: 'rgba(79, 70, 229, 0.95)', // Slightly transparent primary color
-  },
-  header: {
-    height: 30,
-    width: width * 0.8,
+    backgroundColor: '#f2f4f8',
     overflow: 'hidden',
-    marginBottom: 40,
   },
-  headerHeadings: {
-    position: 'absolute',
-    width: '100%',
+
+  topBar: {
+    paddingHorizontal: 20,
+    zIndex: 10,
   },
-  headerHeadingSpan: {
-    textAlign: 'center',
-    color: '#FFFFFF',
-    fontSize: 24,
-    fontWeight: 'bold',
-    marginVertical: 3,
-  },
-  options: {
-    flexDirection: 'row',
-    justifyContent: 'center',
-    width: width * 0.8,
-    marginBottom: 30,
-    backgroundColor: 'rgba(255, 255, 255, 0.1)',
-    borderRadius: 15,
-    padding: 5,
-  },
-  optionButton: {
-    flex: 1,
-    paddingVertical: 12,
-    borderRadius: 10,
-  },
-  activeOptionButton: {
-    backgroundColor: '#FFFFFF',
-  },
-  optionText: {
-    textAlign: 'center',
-    color: '#FFFFFF',
-    fontSize: 16,
-    opacity: 0.7,
-  },
-  activeOptionText: {
-    color: '#4F46E5',
-    fontWeight: 'bold',
-    opacity: 1,
-  },
-  accountForm: {
-    width: width * 0.8,
-    backgroundColor: '#FFFFFF',
+  backBtn: {
+    width: 40,
+    height: 40,
     borderRadius: 20,
-    padding: 20,
-    shadowColor: '#000',
-    shadowOffset: {
-      width: 0,
-      height: 2,
-    },
-    shadowOpacity: 0.25,
-    shadowRadius: 3.84,
-    elevation: 5,
+    backgroundColor: 'rgba(255, 255, 255, 0.85)',
+    borderWidth: 1.5,
+    borderColor: 'rgba(255, 255, 255, 0.95)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    ...Theme.shadows.card,
   },
-  inputContainer: {
+
+  keyboard: {
+    flex: 1,
+    zIndex: 2,
+  },
+  scrollContent: {
+    flexGrow: 1,
+    justifyContent: 'center',
+    paddingHorizontal: 20,
+    paddingTop: 12,
+  },
+
+  // ── Form card — frosted glass panel
+  formCard: {
+    backgroundColor: 'rgba(255, 255, 255, 0.88)',
+    borderRadius: Theme.radius.xxl,
+    borderWidth: 1.5,
+    borderColor: 'rgba(255, 255, 255, 0.95)',
+    padding: 24,
+    gap: 18,
+    position: 'relative',
+    overflow: 'hidden',
+    ...Theme.shadows.skeuoCard,
+  },
+  cardBevel: {
+    position: 'absolute',
+    top: 0,
+    left: 24,
+    right: 24,
+    height: 1.5,
+    backgroundColor: 'rgba(255, 255, 255, 0.98)',
+    zIndex: 1,
+  },
+
+  // ── Header
+  header: {},
+  title: {
+    fontSize: 30,
+    fontWeight: '700',
+    color: Theme.colors.ink,
+    letterSpacing: Theme.typography.tracking.tight,
+    marginBottom: 6,
+  },
+  subtitle: {
+    fontSize: 15,
+    fontWeight: '400',
+    color: Theme.colors.inkMuted48,
+    lineHeight: 21,
+    letterSpacing: Theme.typography.tracking.normal,
+  },
+
+  // ── Segmented control (iOS native feel)
+  segControl: {
+    flexDirection: 'row',
+    backgroundColor: 'rgba(120, 120, 128, 0.12)',
+    borderRadius: Theme.radius.lg,
+    padding: 3,
+  },
+  segBtn: {
+    flex: 1,
+    paddingVertical: 9,
+    alignItems: 'center',
+    borderRadius: Theme.radius.md,
+    position: 'relative',
+    overflow: 'hidden',
+  },
+  segBtnActive: {
+    backgroundColor: Theme.colors.canvas,
+    ...Theme.shadows.card,
+  },
+  segActiveBevel: {
+    position: 'absolute',
+    top: 0,
+    left: 8,
+    right: 8,
+    height: 1,
+    backgroundColor: 'rgba(255,255,255,0.95)',
+  },
+  segText: {
+    fontSize: 14,
+    fontWeight: '400',
+    color: Theme.colors.inkMuted48,
+    letterSpacing: Theme.typography.tracking.normal,
+  },
+  segTextActive: {
+    fontWeight: '600',
+    color: Theme.colors.ink,
+  },
+
+  // ── Input fields
+  inputWrap: { gap: 6 },
+  inputLabel: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: Theme.colors.ink,
+    letterSpacing: Theme.typography.tracking.normal,
+    marginLeft: 2,
+  },
+  inputField: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#F3F4F6',
-    borderRadius: 10,
-    marginBottom: 15,
-    paddingHorizontal: 15,
+    backgroundColor: Theme.colors.canvas,
+    borderRadius: Theme.radius.xl,
+    borderWidth: 1.5,
+    borderColor: 'rgba(255, 255, 255, 0.95)',
+    paddingHorizontal: 16,
+    height: 54,
+    position: 'relative',
+    overflow: 'hidden',
+    ...Theme.shadows.skeuoCard,
   },
-  inputIcon: {
-    marginRight: 10,
+  inputBevel: {
+    position: 'absolute',
+    top: 0,
+    left: 14,
+    right: 14,
+    height: 1.5,
+    backgroundColor: 'rgba(255, 255, 255, 0.98)',
   },
-  input: {
+  inputIcon: { marginRight: 10 },
+  textInput: {
     flex: 1,
-    paddingVertical: 15,
     fontSize: 16,
-    color: '#1F2937',
+    color: Theme.colors.ink,
+    letterSpacing: Theme.typography.tracking.normal,
   },
-  submitButton: {
-    marginTop: 10,
-    backgroundColor: '#10B981',
-    paddingVertical: 15,
-    borderRadius: 10,
+  eyeBtn: { padding: 6 },
+
+  // ── Footer
+  footer: {
+    flexDirection: 'row',
     alignItems: 'center',
-    shadowColor: '#000',
-    shadowOffset: {
-      width: 0,
-      height: 1,
-    },
-    shadowOpacity: 0.2,
-    shadowRadius: 1.41,
-    elevation: 2,
+    justifyContent: 'center',
+    gap: 6,
+    marginTop: 2,
   },
-  submitButtonText: {
-    color: '#FFFFFF',
-    fontSize: 16,
-    fontWeight: 'bold',
+  footerText: {
+    fontSize: 12,
+    color: Theme.colors.inkMuted48,
   },
 });

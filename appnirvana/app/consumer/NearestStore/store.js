@@ -1,432 +1,691 @@
-  import React, { useEffect, useState, useRef } from 'react';
-  import {
-    View,
-    Text,
-    TouchableOpacity,
-    Animated,
-    StyleSheet,
-    Image,
-    ScrollView,
-    SafeAreaView,
-  } from 'react-native';
-  import Cart from './cart';
+import React, { useEffect, useState, useRef } from 'react';
+import {
+  View,
+  Text,
+  TouchableOpacity,
+  Animated,
+  StyleSheet,
+  Image,
+  FlatList,
+  SafeAreaView,
+  StatusBar,
+  Dimensions,
+  Pressable,
+} from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import Cart from './cart';
+import { useCart } from './CartContext';
+import Theme from '../../../constants/theme';
+import AmbientAura from '../../../components/AmbientAura';
+import { SkeletonCard } from '../../../components/SkeletonLoader';
+import TactileButton from '../../../components/TactileButton';
 
-  export default function Store({ route, navigation }) {
-    const { uniqueid, storename, storeid, searchMedicines } = route.params;
+const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
-    const [products, setProducts] = useState([]);
-    const [cartItems, setCartItems] = useState([]);
-    const [isMenuVisible, setIsMenuVisible] = useState(false);
-    const [selectedProductId, setSelectedProductId] = useState(null);
-    const [quantities, setQuantities] = useState({});
+export default function Store({ route, navigation }) {
+  const { uniqueid, storename, storeid, searchMedicines } = route.params || {};
+  const insets = useSafeAreaInsets();
+  const { cartItems, addToCart, updateQuantity, removeFromCart } = useCart();
 
-    const slideAnim = useRef(new Animated.Value(-300)).current;
+  const [products, setProducts] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [isMenuVisible, setIsMenuVisible] = useState(false);
+  const [selectedProductId, setSelectedProductId] = useState(null);
+  const [quantities, setQuantities] = useState({});
 
-    // Toggle Cart Menu
-    const toggleMenu = () => {
-      if (isMenuVisible) {
-        Animated.timing(slideAnim, {
-          toValue: -300,
-          duration: 300,
-          useNativeDriver: true,
-        }).start(() => setIsMenuVisible(false));
-      } else {
-        setIsMenuVisible(true);
-        Animated.timing(slideAnim, {
-          toValue: 0,
-          duration: 300,
-          useNativeDriver: true,
-        }).start();
-      }
-    };
+  const slideAnim = useRef(new Animated.Value(SCREEN_WIDTH)).current;
 
-    // Fetch Products
-    const sendStoreIdToAPI = async () => {
-      try {
-        const response = await fetch('http://127.0.0.1:5000/getProducts', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ user_id: storeid }),
-        });
+  // Toggle Cart Drawer
+  const toggleMenu = () => {
+    if (isMenuVisible) {
+      Animated.timing(slideAnim, {
+        toValue: SCREEN_WIDTH,
+        duration: 260,
+        useNativeDriver: true,
+      }).start(() => setIsMenuVisible(false));
+    } else {
+      setIsMenuVisible(true);
+      Animated.timing(slideAnim, {
+        toValue: 0,
+        duration: 260,
+        useNativeDriver: true,
+      }).start();
+    }
+  };
 
-        if (!response.ok) throw new Error('Failed to fetch products');
-        const data = await response.json();
-        setProducts(data);
-      } catch (error) {
-        console.error('Error:', error.message);
-      }
-    };
-
-    // Add to Cart
-    const addToCart = (product, quantity) => {
-      setCartItems((prevCart) => {
-        const existingProduct = prevCart.find(
-          (item) => item.product_id === product.product_id
-        );
-        if (existingProduct) {
-          return prevCart.map((item) =>
-            item.product_id === product.product_id
-              ? { ...item, quantity: item.quantity + quantity }
-              : item
-          );
-        } else {
-          return [...prevCart, { ...product, quantity }];
-        }
+  // Fetch Products
+  const sendStoreIdToAPI = async () => {
+    try {
+      setLoading(true);
+      const response = await fetch('http://192.168.29.173:5000/getProducts', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ user_id: storeid }),
       });
-      setSelectedProductId(null);
-    };
 
-    // Increment Quantity
-    const incrementQuantity = (productId) => {
-      setQuantities((prev) => ({
-        ...prev,
-        [productId]: (prev[productId] || 1) + 1,
-      }));
-    };
+      if (!response.ok) throw new Error('Failed to fetch store inventory');
+      const data = await response.json();
+      setProducts(data || []);
+    } catch (error) {
+      console.error('Error fetching store inventory:', error.message);
+    } finally {
+      setLoading(false);
+    }
+  };
 
-    // Decrement Quantity
-    const decrementQuantity = (productId) => {
-      setQuantities((prev) => ({
-        ...prev,
-        [productId]: Math.max((prev[productId] || 1) - 1, 1),
-      }));
-    };
+  // Cart operations
+  const handleAddToCart = (product, quantity = 1) => {
+    addToCart(product, quantity);
+    setSelectedProductId(null);
+  };
 
-    // Update Quantity in Cart
-    const updateQuantity = (productId, quantity) => {
-      if (quantity < 1) return;
-      setCartItems((prevCart) =>
-        prevCart.map((item) =>
-          item.product_id === productId ? { ...item, quantity } : item
-        )
+  const incrementQuantity = (productId) => {
+    setQuantities((prev) => ({
+      ...prev,
+      [productId]: (prev[productId] || 1) + 1,
+    }));
+  };
+
+  const decrementQuantity = (productId) => {
+    setQuantities((prev) => ({
+      ...prev,
+      [productId]: Math.max((prev[productId] || 1) - 1, 1),
+    }));
+  };
+
+  // Filter products if prescription OCR medicine list was supplied
+  const filteredProducts = products.filter((product) => {
+    if (searchMedicines && searchMedicines.length > 0) {
+      const searchWords = searchMedicines
+        .flatMap((medicine) => medicine.split(/\s+/))
+        .map((word) => word.toLowerCase().trim());
+      return searchWords.some((word) =>
+        product.name.toLowerCase().includes(word)
       );
-    };
+    }
+    return true;
+  });
 
-    // Remove from Cart
-    const removeFromCart = (productId) => {
-      setCartItems((prevCart) =>
-        prevCart.filter((item) => item.product_id !== productId)
-      );
-    };
+  useEffect(() => {
+    sendStoreIdToAPI();
+  }, []);
 
-    // Filter products based on search
-    const filteredProducts = products.filter((product) => {
-      if (searchMedicines && searchMedicines.length > 0) {
-        const searchWords = searchMedicines
-          .flatMap((medicine) => medicine.split(/\s+/))
-          .map((word) => word.toLowerCase().trim());
-        return searchWords.some((word) =>
-          product.name.toLowerCase().includes(word)
-        );
-      }
-      return true;
-    });
+  const totalItems = cartItems.reduce((total, item) => total + item.quantity, 0);
+  const totalPrice = cartItems.reduce(
+    (total, item) => total + item.quantity * item.price_per_unit,
+    0
+  );
 
-    useEffect(() => {
-      sendStoreIdToAPI();
-    }, []);
+  return (
+    <SafeAreaView style={styles.container}>
+      <StatusBar barStyle="dark-content" backgroundColor="transparent" translucent />
+      <AmbientAura variant="header" />
 
-    // Calculate total items and price for floating cart
-    const totalItems = cartItems.reduce((total, item) => total + item.quantity, 0);
-    const totalPrice = cartItems.reduce(
-      (total, item) => total + item.quantity * item.price_per_unit,
-      0
-    );
+      {/* Top iOS Header */}
+      <View style={[styles.topHeader, { paddingTop: Math.max(insets.top, 8) }]}>
+        <TouchableOpacity
+          style={styles.navCircleBtn}
+          onPress={() => navigation.goBack()}
+          activeOpacity={0.7}
+        >
+          <Ionicons name="chevron-back" size={22} color={Theme.colors.primary} />
+        </TouchableOpacity>
 
-    return (
-      <SafeAreaView style={styles.container}>
-         <Text style={styles.title}>
-          
-        </Text>
-        <Text style={styles.title}>
-          Store: {storename} | ID: {storeid} | User: {uniqueid}
-        </Text>
-
-        <View style={styles.buttonContainer}>
-          {/* <TouchableOpacity style={styles.optionButton}>
-            <Text style={styles.optionText}>Handwritten Prescription</Text>
-          </TouchableOpacity> */}
-
-          {/* <TouchableOpacity
-            style={styles.optionButton}
-            onPress={() => navigation.navigate('Printed', { uniqueid, storeid, storename })}
-          >
-            <Text style={styles.optionText}>Upload Prescription</Text>
-          </TouchableOpacity> */}
+        <View style={styles.headerTitleWrap}>
+          <Text style={styles.headerTitle} numberOfLines={1}>
+            {storename || 'Pharmacy Store'}
+          </Text>
+          <Text style={styles.headerSubtitle}>
+            {products.length} medicines in inventory
+          </Text>
         </View>
 
-        <Animated.View
-          style={[styles.menuContainer, { transform: [{ translateX: slideAnim }] }]}
+        <TouchableOpacity
+          style={styles.cartIconTopBtn}
+          onPress={toggleMenu}
+          activeOpacity={0.7}
         >
-        <Cart
-    uniqueid={uniqueid}
-    cartItems={cartItems}
-    updateQuantity={updateQuantity}
-    removeFromCart={removeFromCart}
-    storeid={storeid}
-    onClose={toggleMenu}  // Add this line
-  />
-        </Animated.View>
-
-        <View style={styles.tableContainer}>
-          <ScrollView>
-            <View style={styles.tableHeader}>
-              <Text style={styles.headerText}>Image</Text>
-              <Text style={styles.headerText}>Name</Text>
-              <Text style={styles.headerText}>Price</Text>
-              <Text style={styles.headerText}>Actions</Text>
+          <Ionicons name="bag-outline" size={22} color={Theme.colors.ink} />
+          {cartItems.length > 0 && (
+            <View style={styles.cartBadgeDot}>
+              <Text style={styles.cartBadgeText}>{totalItems}</Text>
             </View>
+          )}
+        </TouchableOpacity>
+      </View>
 
-            {filteredProducts.map((item) => (
-              <View key={item.product_id} style={styles.row}>
-                <Image
-                  source={{ uri: item.picture_of_the_prod }}
-                  style={styles.image}
-                  resizeMode="cover"
-                />
-                <Text style={styles.cell}>{item.name}</Text>
-                <Text style={styles.cell}>
-                  Rs {item.price_per_unit.toFixed(2)}
-                </Text>
-                <View style={styles.actionsContainer}>
-                  {selectedProductId === item.product_id ? (
-                    <View style={styles.quantityEditor}>
-                      <TouchableOpacity
-                        style={styles.quantityButton}
-                        onPress={() => decrementQuantity(item.product_id)}
-                      >
-                        <Text style={styles.quantityButtonText}>-</Text>
-                      </TouchableOpacity>
-                      <Text style={styles.quantityText}>
-                        {quantities[item.product_id] || 1}
-                      </Text>
-                      <TouchableOpacity
-                        style={styles.quantityButton}
-                        onPress={() => incrementQuantity(item.product_id)}
-                      >
-                        <Text style={styles.quantityButtonText}>+</Text>
-                      </TouchableOpacity>
-                      <TouchableOpacity
-                        style={styles.addToCartButton}
-                        onPress={() =>
-                          addToCart(item, quantities[item.product_id] || 1)
-                        }
-                      >
-                        <Text style={styles.addToCartButtonText}>Add</Text>
-                      </TouchableOpacity>
-                    </View>
+      {/* Prescription Filter Banner */}
+      {searchMedicines && searchMedicines.length > 0 && (
+        <View style={styles.rxFilterBanner}>
+          <View style={styles.rxBannerIconWrap}>
+            <Ionicons name="document-text" size={16} color={Theme.colors.primary} />
+          </View>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.rxFilterTitle}>Prescription Filter Active</Text>
+            <Text style={styles.rxFilterText}>
+              Showing {filteredProducts.length} matched items
+            </Text>
+          </View>
+        </View>
+      )}
+
+      {/* Inventory Catalog List */}
+      {loading ? (
+        <View style={styles.loadingContainer}>
+          <SkeletonCard />
+          <SkeletonCard />
+          <SkeletonCard />
+        </View>
+      ) : (
+        <FlatList
+          data={filteredProducts}
+          keyExtractor={(item, index) => (item.product_id || item.id || `prod-${index}`).toString()}
+          contentContainerStyle={[
+            styles.listContent,
+            {
+              paddingBottom:
+                cartItems.length > 0
+                  ? Math.max(insets.bottom, 16) + 110
+                  : Math.max(insets.bottom, 16) + 30,
+            },
+          ]}
+          showsVerticalScrollIndicator={false}
+          ListEmptyComponent={
+            <View style={styles.emptyContainer}>
+              <View style={styles.emptyIconCircle}>
+                <Ionicons name="cube-outline" size={36} color={Theme.colors.inkMuted48} />
+              </View>
+              <Text style={styles.emptyTitle}>No Products Found</Text>
+              <Text style={styles.emptySub}>
+                This pharmacy does not currently have matching items in stock.
+              </Text>
+            </View>
+          }
+          renderItem={({ item }) => {
+            const isEditingQty = selectedProductId === item.product_id;
+            const currentQty = quantities[item.product_id] || 1;
+
+            return (
+              <View style={styles.productCard}>
+                <View style={styles.productTopBevel} />
+                <View style={styles.productCardLeft}>
+                  {item.picture_of_the_prod ? (
+                    <Image
+                      source={{ uri: item.picture_of_the_prod }}
+                      style={styles.productImage}
+                      resizeMode="contain"
+                    />
                   ) : (
-                    <TouchableOpacity
-                      style={styles.addButton}
-                      onPress={() => setSelectedProductId(item.product_id)}
-                    >
-                      <Text style={styles.addButtonText}>+</Text>
-                    </TouchableOpacity>
+                    <Ionicons name="medical-outline" size={28} color={Theme.colors.primary} />
                   )}
                 </View>
-              </View>
-            ))}
-          </ScrollView>
-        </View>
 
-        {cartItems.length > 0 && (
-          <TouchableOpacity 
+                <View style={styles.productCardRight}>
+                  <View style={styles.cardHeaderRow}>
+                    <View style={styles.inStockBadge}>
+                      <Ionicons name="checkmark-circle" size={12} color={Theme.colors.success} />
+                      <Text style={styles.inStockText}>In Stock</Text>
+                    </View>
+                    <Text style={styles.mrpSmall}>incl. taxes</Text>
+                  </View>
+
+                  <Text style={styles.productName} numberOfLines={1}>
+                    {item.name}
+                  </Text>
+                  <Text style={styles.productPrice}>
+                    ₹{Number(item.price_per_unit || 0).toFixed(2)}
+                  </Text>
+
+                  {/* Actions / Quantity Editor */}
+                  <View style={styles.actionsRow}>
+                    {isEditingQty ? (
+                      <View style={styles.stepperContainer}>
+                        <TouchableOpacity
+                          style={styles.stepperBtn}
+                          onPress={() => decrementQuantity(item.product_id)}
+                          activeOpacity={0.7}
+                        >
+                          <Ionicons name="remove" size={14} color={Theme.colors.ink} />
+                        </TouchableOpacity>
+                        <Text style={styles.stepperQtyText}>{currentQty}</Text>
+                        <TouchableOpacity
+                          style={styles.stepperBtn}
+                          onPress={() => incrementQuantity(item.product_id)}
+                          activeOpacity={0.7}
+                        >
+                          <Ionicons name="add" size={14} color={Theme.colors.ink} />
+                        </TouchableOpacity>
+                        <TouchableOpacity
+                          style={styles.confirmAddBtn}
+                          onPress={() => handleAddToCart(item, currentQty)}
+                          activeOpacity={0.8}
+                        >
+                          <Text style={styles.confirmAddBtnText}>Add</Text>
+                        </TouchableOpacity>
+                      </View>
+                    ) : (
+                      <TouchableOpacity
+                        style={styles.quickAddPill}
+                        onPress={() => setSelectedProductId(item.product_id)}
+                        activeOpacity={0.8}
+                      >
+                        <Ionicons name="add" size={14} color={Theme.colors.canvas} />
+                        <Text style={styles.quickAddPillText}>Select Qty</Text>
+                      </TouchableOpacity>
+                    )}
+                  </View>
+                </View>
+              </View>
+            );
+          }}
+        />
+      )}
+
+      {/* Slide-Over Cart Drawer */}
+      {isMenuVisible && (
+        <TouchableOpacity
+          style={styles.drawerBackdrop}
+          activeOpacity={1}
+          onPress={toggleMenu}
+        />
+      )}
+      <Animated.View
+        style={[
+          styles.drawerSheet,
+          { transform: [{ translateX: slideAnim }] },
+        ]}
+      >
+        <Cart
+          uniqueid={uniqueid}
+          cartItems={cartItems}
+          updateQuantity={updateQuantity}
+          removeFromCart={removeFromCart}
+          storeid={storeid}
+          onClose={toggleMenu}
+        />
+      </Animated.View>
+
+      {/* Floating Active Cart Capsule */}
+      {cartItems.length > 0 && !isMenuVisible && (
+        <View
+          style={[
+            styles.floatingCartWrap,
+            { bottom: Math.max(insets.bottom, 16) + 12 },
+          ]}
+          pointerEvents="box-none"
+        >
+          <TouchableOpacity
             style={styles.floatingCart}
             onPress={toggleMenu}
+            activeOpacity={0.9}
           >
-            <View style={styles.floatingCartContent}>
-              <View style={styles.cartIconContainer}>
-                <Text style={styles.cartIcon}>🛒</Text>
-                <Text style={styles.itemCount}>{totalItems} item{totalItems !== 1 ? 's' : ''}</Text>
-                <Text style={styles.cartPrice}>• ₹{totalPrice.toFixed(2)}</Text>
-              </View>
-              <View style={styles.viewCartSection}>
-                <Text style={styles.viewCartText}>view cart</Text>
-                <Text style={styles.viewCartArrow}>›</Text>
-              </View>
+            <View style={styles.cartTopHighlight} />
+            <View style={styles.cartIconCircle}>
+              <Ionicons name="cart" size={16} color={Theme.colors.canvas} />
+            </View>
+            <View style={styles.floatingCartInfo}>
+              <Text style={styles.floatingCartCount}>
+                {totalItems} {totalItems === 1 ? 'item' : 'items'} · ₹{totalPrice.toFixed(2)}
+              </Text>
+              <Text style={styles.floatingCartSubtitle}>Tap to review basket</Text>
+            </View>
+            <View style={styles.viewCartBtn}>
+              <Text style={styles.viewCartBtnText}>View Cart</Text>
+              <Ionicons name="chevron-forward" size={14} color={Theme.colors.canvas} />
             </View>
           </TouchableOpacity>
-        )}
-      </SafeAreaView>
-    );
-  }
+        </View>
+      )}
+    </SafeAreaView>
+  );
+}
 
-  const styles = StyleSheet.create({
-    container: {
-      flex: 1,
-      backgroundColor: '#f4f7ff',
-    },
-    title: {
-      fontSize: 20,
-      fontWeight: 'bold',
-      color: '#0a47f0',
-      textAlign: 'center',
-      marginVertical: 10,
-    },
-    tableContainer: {
-      flex: 1,
-      backgroundColor: '#ffffff',
-      borderRadius: 8,
-      margin: 10,
-      paddingVertical: 5,
-    },
-    tableHeader: {
-      flexDirection: 'row',
-      backgroundColor: '#0a47f0',
-      borderRadius: 8,
-      paddingVertical: 10,
-      marginBottom: 5,
-    },
-    headerText: {
-      flex: 1,
-      color: '#ffffff',
-      fontWeight: 'bold',
-      textAlign: 'center',
-      fontSize: 14,
-    },
-    row: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      paddingVertical: 10,
-      paddingHorizontal: 5,
-    },
-    cell: {
-      flex: 1,
-      textAlign: 'center',
-      fontSize: 14,
-      color: '#333',
-    },
-    image: {
-      width: 50,
-      height: 50,
-      borderRadius: 5,
-    },
-    addButton: {
-      backgroundColor: '#0a47f0',
-      borderRadius: 5,
-      padding: 10,
-    },
-    addButtonText: {
-      color: '#fff',
-      fontSize: 16,
-      fontWeight: 'bold',
-    },
-    menuContainer: {
-      position: 'absolute',
-      width: 300,
-      height: '100%',
-      backgroundColor: '#ffffff',
-      zIndex: 100,
-      padding: 10,
-      shadowColor: '#000',
-      shadowOpacity: 0.3,
-      shadowRadius: 5,
-      shadowOffset: { width: 2, height: 2 },
-    },
-    actionsContainer: {
-      flexDirection: 'row',
-      alignItems: 'center',
-    },
-    quantityEditor: {
-      flexDirection: 'row',
-      alignItems: 'center',
-    },
-    quantityButton: {
-      backgroundColor: '#0a47f0',
-      padding: 5,
-      borderRadius: 5,
-      marginHorizontal: 5,
-    },
-    quantityButtonText: {
-      color: '#fff',
-      fontSize: 16,
-      fontWeight: 'bold',
-    },
-    quantityText: {
-      fontSize: 16,
-      fontWeight: 'bold',
-      color: '#333',
-    },
-    addToCartButton: {
-      backgroundColor: '#0a47f0',
-      borderRadius: 5,
-      paddingHorizontal: 10,
-      paddingVertical: 5,
-      marginLeft: 10,
-    },
-    addToCartButtonText: {
-      color: '#fff',
-      fontSize: 14,
-      fontWeight: 'bold',
-    },
-    buttonContainer: {
-      flexDirection: 'row',
-      justifyContent: 'space-around',
-      marginBottom: 15,
-    },
-    optionButton: {
-      paddingVertical: 12,
-      paddingHorizontal: 20,
-      backgroundColor: '#0a47f0',
-      borderRadius: 8,
-      elevation: 3,
-    },
-    optionText: {
-      color: '#ffffff',
-      fontSize: 14,
-      fontWeight: 'bold',
-    },
-    floatingCart: {
-      position: 'absolute',
-      bottom: 10,
-      left: 10,
-      right: 10,
-      backgroundColor: '#0a47f0',
-      borderRadius: 4,
-      elevation: 4,
-      shadowColor: '#000',
-      shadowOffset: { width: 0, height: 2 },
-      shadowOpacity: 0.25,
-      shadowRadius: 4,
-      height: 48,
-    },
-    floatingCartContent: {
-      flexDirection: 'row',
-      justifyContent: 'space-between',
-      alignItems: 'center',
-      paddingHorizontal: 16,
-      height: '100%',
-    },
-    cartIconContainer: {
-      flexDirection: 'row',
-      alignItems: 'center',
-    },
-    cartIcon: {
-      fontSize: 18,
-      color: '#ffffff',
-      marginRight: 8,
-    },
-    itemCount: {
-      color: '#ffffff',
-      fontSize: 14,
-    },
-    cartPrice: {
-      color: '#ffffff',
-      fontSize: 14,
-      marginLeft: 8,
-    },
-    viewCartSection: {
-      flexDirection: 'row',
-      alignItems: 'center',
-    },
-    viewCartText: {
-      color: '#ffffff',
-      fontSize: 14,
-      marginRight: 4,
-    },
-    viewCartArrow: {
-      color: '#ffffff',
-      fontSize: 18,
-      fontWeight: '500',
-    },
-  });
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+    backgroundColor: Theme.colors.canvasParchment,
+  },
+  topHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 16,
+    paddingTop: 8,
+    paddingBottom: 12,
+    backgroundColor: Theme.colors.canvas,
+    borderBottomWidth: 1,
+    borderBottomColor: Theme.colors.hairline,
+  },
+  navCircleBtn: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: Theme.colors.canvasParchment,
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: 'rgba(0,0,0,0.04)',
+  },
+  headerTitleWrap: {
+    flex: 1,
+    alignItems: 'center',
+    paddingHorizontal: 12,
+  },
+  headerTitle: {
+    fontSize: 17,
+    fontWeight: '600',
+    color: Theme.colors.ink,
+    letterSpacing: Theme.typography.tracking.tight,
+  },
+  headerSubtitle: {
+    fontSize: 11,
+    color: Theme.colors.inkMuted48,
+    marginTop: 2,
+  },
+  cartIconTopBtn: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: Theme.colors.canvasParchment,
+    justifyContent: 'center',
+    alignItems: 'center',
+    position: 'relative',
+    borderWidth: 1,
+    borderColor: 'rgba(0,0,0,0.04)',
+  },
+  cartBadgeDot: {
+    position: 'absolute',
+    top: 2,
+    right: 2,
+    width: 17,
+    height: 17,
+    borderRadius: 8.5,
+    backgroundColor: Theme.colors.primary,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  cartBadgeText: {
+    color: Theme.colors.canvas,
+    fontSize: 10,
+    fontWeight: '600',
+  },
+  rxFilterBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    backgroundColor: '#eff5ff',
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    marginHorizontal: 20,
+    marginTop: 14,
+    borderRadius: Theme.radius.lg,
+    borderWidth: 1,
+    borderColor: '#d2e3fc',
+  },
+  rxBannerIconWrap: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: Theme.colors.canvas,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  rxFilterTitle: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: Theme.colors.ink,
+  },
+  rxFilterText: {
+    fontSize: 12,
+    color: Theme.colors.primary,
+    marginTop: 1,
+  },
+  loadingContainer: {
+    paddingHorizontal: 20,
+    paddingTop: 16,
+  },
+  listContent: {
+    paddingHorizontal: 20,
+    paddingTop: 14,
+    paddingBottom: 110,
+  },
+  productCard: {
+    flexDirection: 'row',
+    backgroundColor: Theme.colors.canvas,
+    borderRadius: Theme.radius.xl,
+    padding: 14,
+    borderWidth: 1,
+    borderColor: Theme.colors.hairline,
+    borderTopWidth: 1.5,
+    borderTopColor: 'rgba(255, 255, 255, 0.95)',
+    marginBottom: 14,
+    gap: 14,
+    position: 'relative',
+    overflow: 'hidden',
+    ...Theme.shadows.skeuoCard,
+  },
+  productTopBevel: {
+    position: 'absolute',
+    top: 0,
+    left: 16,
+    right: 16,
+    height: 1,
+    backgroundColor: 'rgba(255, 255, 255, 0.95)',
+  },
+  productCardLeft: {
+    width: 82,
+    height: 82,
+    borderRadius: 18,
+    backgroundColor: Theme.colors.canvasParchment,
+    justifyContent: 'center',
+    alignItems: 'center',
+    overflow: 'hidden',
+    borderWidth: 1,
+    borderColor: 'rgba(0,0,0,0.03)',
+  },
+  productImage: {
+    width: '82%',
+    height: '82%',
+  },
+  productCardRight: {
+    flex: 1,
+    justifyContent: 'space-between',
+  },
+  cardHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  inStockBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: '#e6f7ec',
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: Theme.radius.pill,
+  },
+  inStockText: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: Theme.colors.success,
+  },
+  mrpSmall: {
+    fontSize: 11,
+    color: Theme.colors.inkMuted48,
+  },
+  productName: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: Theme.colors.ink,
+    marginTop: 4,
+    letterSpacing: Theme.typography.tracking.tight,
+  },
+  productPrice: {
+    fontSize: 17,
+    fontWeight: '600',
+    color: Theme.colors.primary,
+    marginTop: 4,
+    letterSpacing: Theme.typography.tracking.tight,
+  },
+  actionsRow: {
+    marginTop: 8,
+  },
+  quickAddPill: {
+    alignSelf: 'flex-start',
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    backgroundColor: Theme.colors.primary,
+    paddingHorizontal: 14,
+    paddingVertical: 7,
+    borderRadius: Theme.radius.pill,
+    ...Theme.shadows.skeuoButton,
+  },
+  quickAddPillText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: Theme.colors.canvas,
+  },
+  stepperContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  stepperBtn: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: Theme.colors.canvasParchment,
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: Theme.colors.hairline,
+  },
+  stepperQtyText: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: Theme.colors.ink,
+    minWidth: 20,
+    textAlign: 'center',
+  },
+  confirmAddBtn: {
+    backgroundColor: Theme.colors.primary,
+    paddingHorizontal: 14,
+    paddingVertical: 7,
+    borderRadius: Theme.radius.pill,
+    marginLeft: 4,
+    ...Theme.shadows.skeuoButton,
+  },
+  confirmAddBtnText: {
+    color: Theme.colors.canvas,
+    fontSize: 12,
+    fontWeight: '600',
+  },
+  emptyContainer: {
+    alignItems: 'center',
+    paddingVertical: 60,
+  },
+  emptyIconCircle: {
+    width: 64,
+    height: 64,
+    borderRadius: 32,
+    backgroundColor: Theme.colors.canvas,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 12,
+    ...Theme.shadows.skeuoCircle,
+  },
+  emptyTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: Theme.colors.ink,
+    letterSpacing: Theme.typography.tracking.tight,
+  },
+  emptySub: {
+    fontSize: 13,
+    color: Theme.colors.inkMuted48,
+    textAlign: 'center',
+    paddingHorizontal: 32,
+    marginTop: 4,
+  },
+  drawerBackdrop: {
+    position: 'absolute',
+    inset: 0,
+    backgroundColor: 'rgba(0, 0, 0, 0.3)',
+    zIndex: 90,
+  },
+  drawerSheet: {
+    position: 'absolute',
+    top: 0,
+    bottom: 0,
+    right: 0,
+    width: SCREEN_WIDTH * 0.9,
+    backgroundColor: Theme.colors.canvas,
+    zIndex: 100,
+  },
+  floatingCartWrap: {
+    position: 'absolute',
+    bottom: 24,
+    left: 20,
+    right: 20,
+    zIndex: 80,
+  },
+  floatingCart: {
+    backgroundColor: Theme.colors.ink,
+    borderRadius: Theme.radius.xxl,
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    position: 'relative',
+    overflow: 'hidden',
+    ...Theme.shadows.skeuoCard,
+  },
+  cartTopHighlight: {
+    position: 'absolute',
+    top: 0,
+    left: 20,
+    right: 20,
+    height: 1,
+    backgroundColor: 'rgba(255, 255, 255, 0.25)',
+  },
+  cartIconCircle: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: 'rgba(255, 255, 255, 0.15)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 12,
+  },
+  floatingCartInfo: {
+    flex: 1,
+  },
+  floatingCartCount: {
+    color: Theme.colors.canvas,
+    fontSize: 14,
+    fontWeight: '600',
+    letterSpacing: Theme.typography.tracking.tight,
+  },
+  floatingCartSubtitle: {
+    color: 'rgba(255, 255, 255, 0.7)',
+    fontSize: 11,
+    marginTop: 1,
+  },
+  viewCartBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: Theme.colors.primary,
+    paddingHorizontal: 12,
+    paddingVertical: 7,
+    borderRadius: Theme.radius.pill,
+    gap: 4,
+  },
+  viewCartBtnText: {
+    color: Theme.colors.canvas,
+    fontSize: 12,
+    fontWeight: '600',
+  },
+});

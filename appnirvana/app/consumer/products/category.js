@@ -1,305 +1,507 @@
-import React, { useState, useRef, useEffect } from 'react';
-import { 
-  View, 
-  Text, 
-  TouchableOpacity, 
-  StyleSheet, 
-  Animated, 
-  ImageBackground, 
-  FlatList, 
-  Image, 
-  TextInput, 
-  Dimensions 
+import React, { useState, useRef, useCallback } from 'react';
+import {
+  View,
+  Text,
+  TouchableOpacity,
+  StyleSheet,
+  Animated,
+  FlatList,
+  Image,
+  TextInput,
+  Dimensions,
+  StatusBar,
+  Pressable,
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { Ionicons } from '@expo/vector-icons';
 import SideCON from '../SidemenuCON';
+import Theme from '../../../constants/theme';
+import { SkeletonCard } from '../../../components/SkeletonLoader';
+import AmbientAura from '../../../components/AmbientAura';
 
-const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
-const scale = SCREEN_WIDTH / 375;
+const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
-const normalize = (size) => {
-  return Math.round(scale * size);
-};
+const ProductItem = React.memo(({ item, onPress }) => {
+  const scaleAnim = useRef(new Animated.Value(1)).current;
 
-const ProductItem = ({ item, onPress }) => (
-  <TouchableOpacity style={styles.productItem} onPress={onPress}>
-    <Image 
-      source={{ uri: item.picture_of_the_prod }} 
-      style={styles.productImage}
-      resizeMode="contain"
-    />
-    <View style={styles.productDetails}>
-      <Text style={styles.productName} numberOfLines={2}>{item.name}</Text>
-      <Text style={styles.productDescription} numberOfLines={2}>
-        {item.description || 'No description available'}
-      </Text>
-      <View style={styles.priceContainer}>
-        <Text style={styles.productPrice}>₹{item.price_per_unit}</Text>
-      </View>
-    </View>
-  </TouchableOpacity>
-);
-
-export default function Category({ route, navigation }) {
-  const { categoryName, products ,uniqueid } = route.params;
-  const [isMenuVisible, setIsMenuVisible] = useState(false);
-  const slideAnim = useRef(new Animated.Value(-SCREEN_WIDTH * 0.7)).current;
-  const iconRotate = useRef(new Animated.Value(0)).current;
-  const [searchQuery, setSearchQuery] = useState('');
-  const [filteredProducts, setFilteredProducts] = useState(products);
-
-  const toggleMenu = () => {
-    if (isMenuVisible) {
-      Animated.parallel([
-        Animated.timing(slideAnim, {
-          toValue: -SCREEN_WIDTH * 0.7,
-          duration: 300,
-          useNativeDriver: true,
-        }),
-        Animated.timing(iconRotate, {
-          toValue: 0,
-          duration: 300,
-          useNativeDriver: true,
-        })
-      ]).start(() => setIsMenuVisible(false));
-    } else {
-      setIsMenuVisible(true);
-      Animated.parallel([
-        Animated.timing(slideAnim, {
-          toValue: 0,
-          duration: 300,
-          useNativeDriver: true,
-        }),
-        Animated.timing(iconRotate, {
-          toValue: 1,
-          duration: 300,
-          useNativeDriver: true,
-        })
-      ]).start();
-    }
+  const handlePressIn = () => {
+    Animated.spring(scaleAnim, {
+      toValue: 0.98,
+      useNativeDriver: true,
+      speed: 40,
+      bounciness: 3,
+    }).start();
   };
 
-  const handleSearch = (text) => {
-    setSearchQuery(text);
-    if (!text.trim()) {
-      setFilteredProducts(products);
-      return;
-    }
-
-    const searchTerm = text.toLowerCase().trim();
-    const filtered = products.filter(product => 
-      product.name && product.name.toLowerCase().includes(searchTerm)
-    );
-    setFilteredProducts(filtered);
+  const handlePressOut = () => {
+    Animated.spring(scaleAnim, {
+      toValue: 1,
+      useNativeDriver: true,
+      speed: 40,
+      bounciness: 4,
+    }).start();
   };
-
-  const handleProductPress = (product) => {
-    navigation.navigate('Product', {
-      product: product,
-      categoryProducts: products,
-      categoryName: categoryName,  
-      uniqueid: uniqueid,        
-                
-    });
-  };
-
-  const rotateIcon = iconRotate.interpolate({
-    inputRange: [0, 1],
-    outputRange: ['0deg', '90deg'],
-  });
 
   return (
-    <ImageBackground
-      source={require('../assets/homepage.jpg')}
-      style={styles.backgroundImage}
-      resizeMode="cover"
-    >
-      <View style={styles.overlay}>
-        <View style={styles.fixedHeader}>
-          <TouchableOpacity style={styles.menuButton} onPress={toggleMenu}>
-            <Animated.View style={{ transform: [{ rotate: rotateIcon }] }}>
-              <Text style={styles.menuButtonText}>
-                {isMenuVisible ? <Text>X</Text> : <Text>☰</Text>}
-              </Text>
-            </Animated.View>
-          </TouchableOpacity>
-          
-          <Text style={styles.title}>{categoryName}</Text>
-          
-          <View style={styles.searchContainer}>
-            <TextInput
-              style={styles.searchInput}
-              placeholder={`Search in ${categoryName}`}
-              placeholderTextColor="#a0a0a0"
-              value={searchQuery}
-              onChangeText={handleSearch}
+    <Animated.View style={{ transform: [{ scale: scaleAnim }] }}>
+      <Pressable
+        style={styles.productCard}
+        onPress={() => onPress(item)}
+        onPressIn={handlePressIn}
+        onPressOut={handlePressOut}
+      >
+        <View style={styles.productTopBevel} />
+        <View style={styles.productImageWrap}>
+          {item.picture_of_the_prod ? (
+            <Image
+              source={{ uri: item.picture_of_the_prod }}
+              style={styles.productImage}
+              resizeMode="contain"
             />
-          </View>
+          ) : (
+            <Ionicons name="medical-outline" size={28} color={Theme.colors.primary} />
+          )}
         </View>
 
-        <FlatList
-          data={filteredProducts}
-          renderItem={({ item }) => (
-            <ProductItem 
-              item={item} 
-              onPress={() => handleProductPress(item)}
-            />
-          )}
-          keyExtractor={(item, index) => item.id?.toString() || `product-${index}`}
-          style={styles.productList}
-          showsVerticalScrollIndicator={false}
-          contentContainerStyle={styles.productListContent}
-        />
+        <View style={styles.productDetails}>
+          <View style={styles.verifiedRow}>
+            <View style={styles.safeTag}>
+              <Ionicons name="checkmark-circle" size={12} color={Theme.colors.success} />
+              <Text style={styles.safeTagText}>Verified</Text>
+            </View>
+            <Text style={styles.rxText}>Rx Required</Text>
+          </View>
 
-        <Animated.View style={[
-          styles.menuContainer, 
-          { transform: [{ translateX: slideAnim }] }
-        ]}>
-          <SideCON navigation={navigation} toggleMenu={toggleMenu} />
-        </Animated.View>
+          <Text style={styles.productName} numberOfLines={1}>
+            {item.name}
+          </Text>
+          <Text style={styles.productDescription} numberOfLines={2}>
+            {item.description || 'Clinical pharmaceutical grade formulation'}
+          </Text>
+
+          <View style={styles.priceRow}>
+            <View style={styles.priceContainer}>
+              <Text style={styles.productPrice}>
+                ₹{Number(item.price_per_unit || 0).toFixed(2)}
+              </Text>
+              <Text style={styles.mrpLabel}>incl. taxes</Text>
+            </View>
+
+            <View style={styles.viewDetailsBtn}>
+              <Text style={styles.viewDetailsText}>View</Text>
+              <Ionicons name="chevron-forward" size={14} color={Theme.colors.primary} />
+            </View>
+          </View>
+        </View>
+      </Pressable>
+    </Animated.View>
+  );
+});
+
+export default function Category({ route, navigation }) {
+  const { categoryName, products, uniqueid } = route.params || {};
+  const [isMenuVisible, setIsMenuVisible] = useState(false);
+  const slideAnim = useRef(new Animated.Value(-SCREEN_WIDTH * 0.75)).current;
+  const [searchQuery, setSearchQuery] = useState('');
+  const [filteredProducts, setFilteredProducts] = useState(products || []);
+
+  const toggleMenu = useCallback(() => {
+    const opening = !isMenuVisible;
+    const toValue = opening ? 0 : -SCREEN_WIDTH * 0.75;
+    Animated.timing(slideAnim, {
+      toValue,
+      duration: 260,
+      useNativeDriver: true,
+    }).start();
+    setIsMenuVisible(opening);
+  }, [isMenuVisible, slideAnim]);
+
+  const handleSearch = useCallback(
+    (text) => {
+      setSearchQuery(text);
+      if (!text.trim()) {
+        setFilteredProducts(products || []);
+        return;
+      }
+
+      const searchTerm = text.toLowerCase().trim();
+      const filtered = (products || []).filter(
+        (product) =>
+          product.name && product.name.toLowerCase().includes(searchTerm)
+      );
+      setFilteredProducts(filtered);
+    },
+    [products]
+  );
+
+  const handleProductPress = useCallback(
+    (product) => {
+      navigation.navigate('Product', {
+        product,
+        categoryProducts: products,
+        categoryName,
+        uniqueid,
+      });
+    },
+    [navigation, products, categoryName, uniqueid]
+  );
+
+  const insets = useSafeAreaInsets();
+
+  return (
+    <View style={styles.container}>
+      <StatusBar barStyle="dark-content" backgroundColor="transparent" translucent />
+
+      {/* ── Ambient Header Aura ── */}
+      <AmbientAura variant="header" />
+
+      {/* iOS Top Navigation Bar */}
+      <View style={[styles.topHeader, { paddingTop: insets.top + 8 }]}>
+        <TouchableOpacity
+          style={styles.navCircleBtn}
+          onPress={() => navigation.goBack()}
+          activeOpacity={0.7}
+        >
+          <Ionicons name="chevron-back" size={22} color={Theme.colors.primary} />
+        </TouchableOpacity>
+
+        <View style={styles.headerTitleWrap}>
+          <Text style={styles.headerTitle} numberOfLines={1}>
+            {categoryName || 'Medicines'}
+          </Text>
+          <Text style={styles.headerSubtitle}>
+            {filteredProducts.length} verified item{filteredProducts.length !== 1 ? 's' : ''}
+          </Text>
+        </View>
+
+        <TouchableOpacity
+          style={styles.navCircleBtn}
+          onPress={toggleMenu}
+          activeOpacity={0.7}
+        >
+          <Ionicons name="menu-outline" size={22} color={Theme.colors.ink} />
+        </TouchableOpacity>
       </View>
-    </ImageBackground>
+
+      {/* Search Input Bar */}
+      <View style={styles.searchSection}>
+        <View style={styles.searchWrap}>
+          <Ionicons
+            name="search-outline"
+            size={18}
+            color={Theme.colors.inkMuted48}
+            style={styles.searchIcon}
+          />
+          <TextInput
+            style={styles.searchInput}
+            placeholder={`Search in ${categoryName || 'category'}...`}
+            placeholderTextColor={Theme.colors.inkMuted48}
+            value={searchQuery}
+            onChangeText={handleSearch}
+          />
+          {searchQuery.length > 0 && (
+            <TouchableOpacity onPress={() => handleSearch('')} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+              <Ionicons name="close-circle" size={18} color={Theme.colors.inkMuted48} />
+            </TouchableOpacity>
+          )}
+        </View>
+      </View>
+
+      {/* Product List */}
+      <FlatList
+        data={filteredProducts}
+        renderItem={({ item }) => (
+          <ProductItem item={item} onPress={handleProductPress} />
+        )}
+        keyExtractor={(item, index) =>
+          item.product_id?.toString() || item.id?.toString() || `prod-${index}`
+        }
+        style={styles.productList}
+        showsVerticalScrollIndicator={false}
+        contentContainerStyle={[styles.productListContent, { paddingBottom: insets.bottom + 40 }]}
+        removeClippedSubviews={true}
+        maxToRenderPerBatch={8}
+        windowSize={5}
+        initialNumToRender={8}
+        ListEmptyComponent={
+          <View style={styles.emptyContainer}>
+            <View style={styles.emptyIconCircle}>
+              <Ionicons name="search-outline" size={32} color={Theme.colors.inkMuted48} />
+            </View>
+            <Text style={styles.emptyTitle}>No matching medicines found</Text>
+            <Text style={styles.emptySubtitle}>Try adjusting your search terms</Text>
+          </View>
+        }
+      />
+
+      {/* Slide Drawer Modal */}
+      {isMenuVisible && (
+        <TouchableOpacity
+          style={styles.drawerBackdrop}
+          activeOpacity={1}
+          onPress={toggleMenu}
+        />
+      )}
+      <Animated.View
+        style={[
+          styles.drawerContainer,
+          { transform: [{ translateX: slideAnim }] },
+        ]}
+      >
+        <SideCON
+          navigation={navigation}
+          toggleMenu={toggleMenu}
+          uniqueid={uniqueid}
+        />
+      </Animated.View>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  backgroundImage: {
+  container: {
     flex: 1,
-    width: '100%',
-    height: '100%',
+    backgroundColor: Theme.colors.canvasParchment,
   },
-  overlay: {
-    flex: 1,
-    backgroundColor: 'rgba(245, 240, 240, 0.28)',
-  },
-  fixedHeader: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    backgroundColor: 'transparent',
-    zIndex: 2,
-    paddingTop: normalize(35),
-    paddingBottom: normalize(15),
-  },
-  title: {
-    fontSize: normalize(28),
-    marginTop: normalize(30),
-    color: '#d2effc',
-    fontWeight: 'bold',
-    marginBottom: normalize(10),
-    textAlign: 'center',
-  },
-  menuContainer: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    width: SCREEN_WIDTH * 0.7,
-    height: SCREEN_HEIGHT,
-    backgroundColor: '#ffffff',
-    paddingTop: normalize(80),
-    paddingHorizontal: normalize(20),
-    zIndex: 5,
-    elevation: 5,
-    borderRightWidth: 1,
-    borderRightColor: '#e0e0e0',
-  },
-  menuButton: {
-    position: 'absolute',
-    top: normalize(40),
-    right: normalize(20),
-    padding: normalize(5),
-    borderRadius: normalize(12),
-    zIndex: 10,
-  },
-  menuButtonText: {
-    fontSize: normalize(20),
-    color: '#ffffff',
-    fontWeight: 'bold',
-  },
-  searchContainer: {
+  topHeader: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: normalize(20),
-    marginBottom: normalize(15),
+    justifyContent: 'space-between',
+    paddingHorizontal: 16,
+    paddingTop: 8,
+    paddingBottom: 12,
+    backgroundColor: Theme.colors.canvas,
+    borderBottomWidth: 1,
+    borderBottomColor: Theme.colors.hairline,
+  },
+  navCircleBtn: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: Theme.colors.canvasParchment,
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: 'rgba(0,0,0,0.04)',
+  },
+  headerTitleWrap: {
+    flex: 1,
+    alignItems: 'center',
+    paddingHorizontal: 8,
+  },
+  headerTitle: {
+    fontFamily: 'Inter_400Regular',
+    fontSize: 17,
+    fontWeight: '600',
+    color: 'rgba(15, 23, 42, 0.92)',
+    letterSpacing: 0,
+  },
+  headerSubtitle: {
+    fontFamily: 'Inter_400Regular',
+    fontSize: 11,
+    color: 'rgba(100, 116, 139, 0.78)',
+    marginTop: 2,
+    fontWeight: '400',
+  },
+  searchSection: {
+    paddingHorizontal: 20,
+    paddingTop: 14,
+    paddingBottom: 6,
+  },
+  searchWrap: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: Theme.colors.canvas,
+    borderRadius: Theme.radius.xl,
+    paddingHorizontal: 16,
+    height: 48,
+    borderWidth: 1,
+    borderColor: Theme.colors.hairline,
+    borderTopWidth: 1.5,
+    borderTopColor: 'rgba(255, 255, 255, 0.95)',
+    ...Theme.shadows.skeuoCard,
+  },
+  searchIcon: {
+    marginRight: 8,
   },
   searchInput: {
     flex: 1,
-    height: normalize(45),
-    backgroundColor: '#ffffff',
-    borderRadius: normalize(25),
-    paddingHorizontal: normalize(20),
-    fontSize: normalize(14),
-    color: '#000',
+    fontFamily: 'Inter_400Regular',
+    fontSize: 15,
+    color: 'rgba(15, 23, 42, 0.88)',
+    fontWeight: '400',
+    letterSpacing: 0,
   },
   productList: {
     flex: 1,
-    marginTop: normalize(160),
   },
   productListContent: {
-    padding: normalize(15),
+    paddingHorizontal: 20,
+    paddingTop: 12,
+    paddingBottom: 40,
   },
-  productItem: {
+  productCard: {
     flexDirection: 'row',
-    backgroundColor: '#ffffff',
-    marginBottom: normalize(15),
-    borderRadius: normalize(10),
-    padding: normalize(12),
-    shadowColor: '#000',
-    shadowOffset: {
-      width: 0,
-      height: 2,
-    },
-    shadowOpacity: 0.1,
-    shadowRadius: 3,
-    elevation: 3,
+    backgroundColor: Theme.colors.canvas,
+    marginBottom: 14,
+    borderRadius: Theme.radius.xl,
+    padding: 14,
+    borderWidth: 1,
+    borderColor: Theme.colors.hairline,
+    borderTopWidth: 1.5,
+    borderTopColor: 'rgba(255, 255, 255, 0.95)',
+    gap: 14,
+    position: 'relative',
+    overflow: 'hidden',
+    ...Theme.shadows.skeuoCard,
+  },
+  productTopBevel: {
+    position: 'absolute',
+    top: 0,
+    left: 16,
+    right: 16,
+    height: 1,
+    backgroundColor: 'rgba(255, 255, 255, 0.9)',
+  },
+  productImageWrap: {
+    width: 86,
+    height: 86,
+    borderRadius: 18,
+    backgroundColor: Theme.colors.canvasParchment,
+    justifyContent: 'center',
+    alignItems: 'center',
+    overflow: 'hidden',
+    borderWidth: 1,
+    borderColor: 'rgba(0,0,0,0.03)',
   },
   productImage: {
-    width: SCREEN_WIDTH * 0.25,
-    height: SCREEN_WIDTH * 0.25,
-    borderRadius: normalize(8),
-    marginRight: normalize(12),
+    width: '82%',
+    height: '82%',
   },
   productDetails: {
     flex: 1,
     justifyContent: 'space-between',
   },
+  verifiedRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  safeTag: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: '#e6f7ec',
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: Theme.radius.pill,
+  },
+  safeTagText: {
+    fontFamily: 'Inter_400Regular',
+    fontSize: 11,
+    fontWeight: '600',
+    color: Theme.colors.success,
+  },
+  rxText: {
+    fontFamily: 'Inter_400Regular',
+    fontSize: 11,
+    color: 'rgba(100, 116, 139, 0.78)',
+    fontWeight: '400',
+  },
   productName: {
-    fontSize: normalize(16),
-    fontWeight: 'bold',
-    color: '#333',
-    marginBottom: normalize(4),
+    fontFamily: 'Inter_400Regular',
+    fontSize: 16,
+    fontWeight: '400',
+    color: 'rgba(15, 23, 42, 0.92)',
+    marginTop: 4,
+    letterSpacing: 0,
   },
   productDescription: {
-    fontSize: normalize(14),
-    color: '#666',
-    marginBottom: normalize(8),
+    fontFamily: 'Inter_400Regular',
+    fontSize: 12,
+    color: 'rgba(100, 116, 139, 0.78)',
+    lineHeight: 16,
+    marginTop: 2,
+  },
+  priceRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginTop: 8,
   },
   priceContainer: {
-    marginTop: normalize(8),
+    flexDirection: 'row',
+    alignItems: 'baseline',
+    gap: 4,
   },
   productPrice: {
-    fontSize: normalize(18),
+    fontFamily: 'Inter_400Regular',
+    fontSize: 17,
     fontWeight: '600',
-    color: '#0a47f0',
+    color: Theme.colors.primary,
+    letterSpacing: 0,
   },
-  searchInput: {
-    flex: 1,
-    height: normalize(45),
-    backgroundColor: '#ffffff',
-    borderRadius: normalize(25),
-    paddingHorizontal: normalize(20),
-    fontSize: normalize(14),
-    color: '#000',
-    elevation: 3,
-    shadowColor: '#000',
-    shadowOffset: {
-      width: 0,
-      height: 2,
-    },
-    shadowOpacity: 0.1,
-    shadowRadius: 3,
+  mrpLabel: {
+    fontFamily: 'Inter_400Regular',
+    fontSize: 11,
+    color: 'rgba(100, 116, 139, 0.78)',
   },
-  productListContent: {
-    padding: normalize(15),
+  viewDetailsBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 2,
+    backgroundColor: '#f0f5ff',
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: Theme.radius.pill,
+  },
+  viewDetailsText: {
+    fontFamily: 'Inter_400Regular',
+    fontSize: 12,
+    fontWeight: '600',
+    color: Theme.colors.primary,
+  },
+  emptyContainer: {
+    alignItems: 'center',
+    paddingVertical: 60,
+  },
+  emptyIconCircle: {
+    width: 64,
+    height: 64,
+    borderRadius: 32,
+    backgroundColor: Theme.colors.canvas,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 12,
+    ...Theme.shadows.skeuoCircle,
+  },
+  emptyTitle: {
+    fontFamily: 'Inter_400Regular',
+    fontSize: 16,
+    fontWeight: '400',
+    color: 'rgba(15, 23, 42, 0.92)',
+    letterSpacing: 0,
+  },
+  emptySubtitle: {
+    fontFamily: 'Inter_400Regular',
+    fontSize: 13,
+    fontWeight: '400',
+    color: 'rgba(100, 116, 139, 0.78)',
+    marginTop: 4,
+  },
+  drawerBackdrop: {
+    position: 'absolute',
+    inset: 0,
+    backgroundColor: 'rgba(0, 0, 0, 0.3)',
+    zIndex: 90,
+  },
+  drawerContainer: {
+    position: 'absolute',
+    top: 0,
+    bottom: 0,
+    left: 0,
+    width: SCREEN_WIDTH * 0.75,
+    backgroundColor: Theme.colors.canvas,
+    zIndex: 100,
   },
 });

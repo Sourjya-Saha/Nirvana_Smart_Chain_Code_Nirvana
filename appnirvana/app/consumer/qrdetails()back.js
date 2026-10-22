@@ -44,7 +44,7 @@ export default function Qrdetails({ route, navigation }) {
         name: 'photo.jpg',
       });
 
-      const response = await fetch('http://127.0.0.1:5000/decode_qr', {
+      const response = await fetch('http://192.168.29.173:5000/decode_qr', {
         method: 'POST',
         headers: {
           'Content-Type': 'multipart/form-data',

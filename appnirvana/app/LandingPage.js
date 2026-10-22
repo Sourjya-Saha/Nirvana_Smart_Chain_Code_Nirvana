@@ -1,131 +1,266 @@
 import React, { useEffect, useRef } from 'react';
-import { 
-  View, 
-  Text, 
-  TouchableOpacity, 
-  StyleSheet, 
-  Animated, 
+import {
+  View,
+  Text,
+  StyleSheet,
+  Animated,
+  StatusBar,
+  Dimensions,
   Easing,
-  ImageBackground 
+  ScrollView,
+  Image,
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
+import { Ionicons } from '@expo/vector-icons';
+import Theme from '../constants/theme';
+import TactileButton from '../components/TactileButton';
+import AmbientAura from '../components/AmbientAura';
+
+const { width: W } = Dimensions.get('window');
 
 export default function LandingPage() {
+  const insets = useSafeAreaInsets();
   const navigation = useNavigation();
-  const colorAnim = useRef(new Animated.Value(0)).current;
+
+  const heroFade  = useRef(new Animated.Value(0)).current;
+  const heroSlide = useRef(new Animated.Value(18)).current;
+  const listFade  = useRef(new Animated.Value(0)).current;
+  const listSlide = useRef(new Animated.Value(22)).current;
+  const btnFade   = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
-    const animateColor = () => {
-      Animated.loop(
-        Animated.timing(colorAnim, {
-          toValue: 1,
-          duration: 25000,
-          useNativeDriver: false,
-          easing: Easing.inOut(Easing.ease),
-        })
-      ).start();
-    };
-
-    animateColor();
+    Animated.sequence([
+      // 1. Hero section enters
+      Animated.parallel([
+        Animated.timing(heroFade, {
+          toValue: 1, duration: 520,
+          easing: Easing.out(Easing.quad), useNativeDriver: true,
+        }),
+        Animated.spring(heroSlide, {
+          toValue: 0, speed: 13, bounciness: 2, useNativeDriver: true,
+        }),
+      ]),
+      // 2. Feature list enters
+      Animated.parallel([
+        Animated.timing(listFade, {
+          toValue: 1, duration: 420,
+          easing: Easing.out(Easing.quad), useNativeDriver: true,
+        }),
+        Animated.spring(listSlide, {
+          toValue: 0, speed: 11, bounciness: 2, useNativeDriver: true,
+        }),
+      ]),
+      // 3. CTA button fades in last
+      Animated.timing(btnFade, {
+        toValue: 1, duration: 300,
+        easing: Easing.out(Easing.quad), useNativeDriver: true,
+      }),
+    ]).start();
   }, []);
 
-  const colorInterpolation = colorAnim.interpolate({
-    inputRange: [
-      0, 0.066, 0.133, 0.2, 0.266, 0.333, 0.4, 0.466, 0.533, 0.6, 0.666, 0.733, 0.8, 0.866, 1
-    ],
-    outputRange: [
-      '#87a7e6', '#7a98e2', '#6c87d7', '#1c7ed4', '#0c7991', '#23a699', '#20b37d',
-      '#5484e3', '#225ed6', '#0235de', '#0a02de', '#29258a', '#2e4694', '#7a98e2', '#87a7e6'
-    ],
-  });
-
   return (
-    <ImageBackground
-      source={require('../assets/images/landing.jpg')} // Adjust the path according to your project structure
-      style={styles.backgroundImage}
-      resizeMode="cover"
-    >
-      <View style={styles.overlay}>
-        <View style={styles.container}>
-          <Animated.Text style={[styles.title1, { color: colorInterpolation }]}>
-            Nirvana
-          </Animated.Text>
-          <Animated.Text style={[styles.title2, { color: colorInterpolation }]}>
-            HealthChain
-          </Animated.Text>
+    <View style={styles.container}>
+      <StatusBar barStyle="dark-content" backgroundColor="transparent" translucent />
 
-          <View style={styles.buttonsContainer}>
-            <TouchableOpacity
-              style={styles.optionButton}
-              onPress={() => navigation.navigate('LoginCon')}
-            >
-              <Text style={styles.optionText}>Login as Consumer</Text>
-            </TouchableOpacity>
+      {/* ── Ethereal Aurora Ambience ── */}
+      <AmbientAura variant="fullscreen" />
 
-            <TouchableOpacity
-              style={styles.optionButton}
-            >
-              <Text style={styles.optionText}>Login as Driver</Text>
-            </TouchableOpacity>
+      <ScrollView
+        contentContainerStyle={[
+          styles.scrollContent,
+          {
+            paddingTop: insets.top + 20,
+            paddingBottom: insets.bottom + 24,
+          },
+        ]}
+        showsVerticalScrollIndicator={false}
+        bounces={false}
+      >
+        {/* ── Hero / Logo area ── */}
+        <Animated.View
+          style={[
+            styles.heroSection,
+            { opacity: heroFade, transform: [{ translateY: heroSlide }] },
+          ]}
+        >
+          {/* App icon squircle with NSC emblem */}
+          <View style={styles.appIcon}>
+            <View style={styles.topBevel} />
+            <Image
+              source={require('../assets/images/nsc_emblem.png')}
+              style={styles.appIconImage}
+              resizeMode="contain"
+            />
           </View>
-        </View>
+
+          <Text style={styles.appName}>Nirvana</Text>
+          <Text style={styles.appTagline}>Your trusted pharmacy, verified & delivered.</Text>
+        </Animated.View>
+
+        {/* ── Feature list ── */}
+        <Animated.View
+          style={[
+            styles.featureList,
+            { opacity: listFade, transform: [{ translateY: listSlide }] },
+          ]}
+        >
+          <FeatureRow icon="shield-checkmark"   text="Verified authentic medicines" />
+          <FeatureRow icon="location"            text="Nearest pharmacy in minutes" />
+          <FeatureRow icon="document-text"       text="Prescription upload & OCR processing" />
+          <FeatureRow icon="time"                text="Real-time order & delivery tracking" />
+        </Animated.View>
+
+        {/* ── CTA ── */}
+        <Animated.View style={[styles.ctaSection, { opacity: btnFade }]}>
+          <TactileButton
+            title="Get Started"
+            icon="arrow-forward"
+            variant="primary"
+            size="large"
+            onPress={() => navigation.navigate('LoginCon')}
+            style={styles.ctaBtn}
+          />
+
+          <Text style={styles.footerNote}>
+            Safe · Private · Trusted by thousands of patients
+          </Text>
+        </Animated.View>
+      </ScrollView>
+    </View>
+  );
+}
+
+function FeatureRow({ icon, text }) {
+  return (
+    <View style={styles.featureRow}>
+      <View style={styles.featureIconWrap}>
+        <View style={styles.iconBevel} />
+        <Ionicons name={icon} size={19} color={Theme.colors.primary} />
       </View>
-    </ImageBackground>
+      <Text style={styles.featureText}>{text}</Text>
+      <Ionicons name="chevron-forward" size={14} color={Theme.colors.inkLight} />
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  backgroundImage: {
-    flex: 1,
-    width: '100%',
-    height: '100%',
-  },
-  overlay: {
-    flex: 1,
-    backgroundColor: 'rgba(245, 240, 240,0.25)', // Semi-transparent overlay
-  },
   container: {
     flex: 1,
+    backgroundColor: '#f2f4f8',
+    overflow: 'hidden',
+  },
+  scrollContent: {
+    flexGrow: 1,
+    paddingHorizontal: 28,
+    justifyContent: 'space-between',
+  },
+
+  // ── Hero
+  heroSection: {
     alignItems: 'flex-start',
-    justifyContent: 'flex-end',
-    paddingHorizontal: 20,
+    marginTop: 20,
+    zIndex: 2,
   },
-  title1: {
-    fontSize: 59,
-    fontWeight: 'bold',
-    marginBottom: 1,
-    alignSelf: 'flex-start',
-    textShadowColor: 'rgba(0, 0, 0, 0.15)',
-    textShadowOffset: { width: 1, height: 1 },
-    textShadowRadius: 2,
-  },
-  title2: {
-    fontSize: 49,
-    fontWeight: 'bold',
-    marginBottom: 5,
-    alignSelf: 'flex-start',
-    textShadowColor: 'rgba(0, 0, 0, 0.15)',
-    textShadowOffset: { width: 1, height: 1 },
-    textShadowRadius: 2,
-  },
-  buttonsContainer: {
-    width: '100%',
+  appIcon: {
+    width: 96,
+    height: 96,
+    borderRadius: Theme.radius.xxl,
+    backgroundColor: 'rgba(255, 255, 255, 0.92)',
+    borderWidth: 1.5,
+    borderColor: 'rgba(255, 255, 255, 0.96)',
+    justifyContent: 'center',
     alignItems: 'center',
-    marginBottom: 20,
+    marginBottom: 22,
+    position: 'relative',
+    overflow: 'hidden',
+    ...Theme.shadows.skeuoCard,
   },
-  optionButton: {
-    padding: 10,
-    marginVertical: 10,
-    borderColor: '#0a47f0',
-    borderWidth: 2,
-    backgroundColor: 'rgba(245, 240, 240, 0.9)',
-    borderRadius: 100,
-    width: '80%',
-    alignItems: 'center',
+  appIconImage: {
+    width: 76,
+    height: 52,
   },
-  optionText: {
-    color: '#0a47f0',
+  topBevel: {
+    position: 'absolute',
+    top: 0,
+    left: 12,
+    right: 12,
+    height: 1.5,
+    backgroundColor: 'rgba(255, 255, 255, 0.98)',
+  },
+  appName: {
+    fontSize: 46,
+    fontWeight: '700',
+    color: Theme.colors.ink,
+    letterSpacing: Theme.typography.tracking.tight,
+    lineHeight: 50,
+  },
+  appTagline: {
     fontSize: 16,
-    fontWeight: 'bold',
+    fontWeight: '400',
+    color: Theme.colors.inkMuted48,
+    marginTop: 10,
+    lineHeight: 23,
+    letterSpacing: Theme.typography.tracking.normal,
+  },
+
+  // ── Feature list
+  featureList: {
+    gap: 12,
+    marginVertical: 8,
+    zIndex: 2,
+  },
+  featureRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 14,
+    backgroundColor: 'rgba(255, 255, 255, 0.72)',
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    borderRadius: Theme.radius.xl,
+    borderWidth: 1.5,
+    borderColor: 'rgba(255, 255, 255, 0.92)',
+    ...Theme.shadows.card,
+  },
+  featureIconWrap: {
+    width: 40,
+    height: 40,
+    borderRadius: Theme.radius.md,
+    backgroundColor: Theme.colors.primarySoft,
+    justifyContent: 'center',
+    alignItems: 'center',
+    overflow: 'hidden',
+    position: 'relative',
+  },
+  iconBevel: {
+    position: 'absolute',
+    top: 0,
+    left: 6,
+    right: 6,
+    height: 1,
+    backgroundColor: 'rgba(255, 255, 255, 0.9)',
+  },
+  featureText: {
+    fontSize: 15,
+    fontWeight: '500',
+    color: Theme.colors.ink,
+    flex: 1,
+    letterSpacing: Theme.typography.tracking.normal,
+  },
+
+  // ── CTA
+  ctaSection: {
+    gap: 14,
+    alignItems: 'center',
+    zIndex: 2,
+  },
+  ctaBtn: {
+    width: '100%',
+  },
+  footerNote: {
+    fontSize: 12,
+    color: Theme.colors.inkLight,
+    textAlign: 'center',
+    letterSpacing: 0.1,
   },
 });

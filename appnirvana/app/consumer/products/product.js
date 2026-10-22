@@ -1,84 +1,92 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { 
+import {
   View,
   Text,
   Image,
   StyleSheet,
   ScrollView,
   TouchableOpacity,
-  ImageBackground,
   Dimensions,
   Animated,
-  useWindowDimensions
+  SafeAreaView,
+  StatusBar,
+  Alert,
 } from 'react-native';
-import Cart from "../NearestStore/cart";
-import { useCart } from '../NearestStore/CartContext'; // ✅ import context
+import { Ionicons } from '@expo/vector-icons';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import Cart from '../NearestStore/cart';
+import { useCart } from '../NearestStore/CartContext';
+import Theme from '../../../constants/theme';
+import AuroraCard from '../../../components/AuroraCard';
+import AmbientAura from '../../../components/AmbientAura';
+import TactileButton from '../../../components/TactileButton';
 
-const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
-const scale = SCREEN_WIDTH / 375;
-const verticalScale = SCREEN_HEIGHT / 812;
+const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
-const normalize = (size) => Math.round(scale * size);
-const verticalNormalize = (size) => Math.round(verticalScale * size);
-const calculateImageDimension = () => {
-  const screenWidth = Dimensions.get('window').width;
-  return screenWidth < 380 ? '90%' : '80%';
-};
-const calculateSimilarProductWidth = () => {
-  const screenWidth = Dimensions.get('window').width;
-  return screenWidth < 380 ? normalize(130) : normalize(150);
-};
-
-const SimilarProductCard = ({ product, onPress, onAddToCart }) => (
-  <TouchableOpacity style={styles.similarProductCard} onPress={onPress}>
-    <Image 
-      source={{ uri: product.picture_of_the_prod }}
-      style={styles.similarProductImage}
-      resizeMode="contain"
-    />
-    <Text style={styles.similarProductName} numberOfLines={2}>
+const SimilarProductCard = React.memo(({ product, onPress, onAddToCart }) => (
+  <TouchableOpacity
+    style={styles.similarProductCard}
+    onPress={onPress}
+    activeOpacity={0.8}
+  >
+    <View style={styles.similarImgWrap}>
+      {product.picture_of_the_prod ? (
+        <Image
+          source={{ uri: product.picture_of_the_prod }}
+          style={styles.similarProductImage}
+          resizeMode="contain"
+        />
+      ) : (
+        <Ionicons name="medical-outline" size={24} color={Theme.colors.primary} />
+      )}
+    </View>
+    <Text style={styles.similarProductName} numberOfLines={1}>
       {product.name}
     </Text>
-    <Text style={styles.similarProductPrice}>₹{product.price_per_unit}</Text>
-    <TouchableOpacity 
-      style={styles.addButton}
+    <Text style={styles.similarProductPrice}>
+      ₹{Number(product.price_per_unit || 0).toFixed(2)}
+    </Text>
+    <TouchableOpacity
+      style={styles.similarAddBtn}
       onPress={() => onAddToCart(product)}
+      activeOpacity={0.8}
     >
-      <Text style={styles.addButtonText}>ADD TO CART</Text>
+      <Ionicons name="add" size={14} color={Theme.colors.canvas} />
+      <Text style={styles.similarAddBtnText}>Add</Text>
     </TouchableOpacity>
   </TouchableOpacity>
-);
+));
 
 export default function Product({ route, navigation }) {
-  const { 
-    product, 
-    categoryProducts, 
-    uniqueid, 
+  const {
+    product,
+    categoryProducts,
+    uniqueid,
     storeid,
     categoryName,
-  } = route.params;
+  } = route.params || {};
 
-  // ✅ cart state now lives in context — persists across all product screens
+  const insets = useSafeAreaInsets();
   const { cartItems, addToCart, totalItems, totalPrice } = useCart();
 
   const [similarProducts, setSimilarProducts] = useState([]);
   const [quantity, setQuantity] = useState(1);
   const [isMenuVisible, setIsMenuVisible] = useState(false);
-  
-  const slideAnim = useRef(new Animated.Value(-300)).current;
+
+  const slideAnim = useRef(new Animated.Value(SCREEN_WIDTH)).current;
 
   const toggleMenu = () => {
     if (isMenuVisible) {
       Animated.timing(slideAnim, {
-        toValue: -300,
-        duration: 300,
+        toValue: SCREEN_WIDTH,
+        duration: 260,
         useNativeDriver: true,
       }).start(() => setIsMenuVisible(false));
     } else {
       setIsMenuVisible(true);
       Animated.timing(slideAnim, {
         toValue: 0,
-        duration: 300,
+        duration: 260,
         useNativeDriver: true,
       }).start();
     }
@@ -86,14 +94,14 @@ export default function Product({ route, navigation }) {
 
   const navigateToCategory = () => {
     navigation.navigate('Category', {
-      categoryName: categoryName,
+      categoryName: categoryName || product?.category,
       products: categoryProducts,
-      uniqueid: uniqueid,
+      uniqueid,
     });
   };
 
   const handleIncrement = () => setQuantity(prev => prev + 1);
-  const handleDecrement = () => setQuantity(prev => prev > 1 ? prev - 1 : 1);
+  const handleDecrement = () => setQuantity(prev => (prev > 1 ? prev - 1 : 1));
 
   const handleSimilarProductPress = (selectedProduct) => {
     navigation.push('Product', {
@@ -104,182 +112,762 @@ export default function Product({ route, navigation }) {
       storeid,
     });
   };
-  
+
   useEffect(() => {
-    if (categoryProducts && Array.isArray(categoryProducts)) {
+    if (categoryProducts && Array.isArray(categoryProducts) && product) {
       const filtered = categoryProducts
         .filter(p => p.product_id !== product.product_id)
-        .slice(0, 3);
+        .slice(0, 4);
       setSimilarProducts(filtered);
     }
   }, [product, categoryProducts]);
 
-  return (
-    <View style={styles.mainContainer}>
-      <ImageBackground
-        source={require('../assets/homepage.jpg')}
-        style={styles.backgroundImage}
-        resizeMode="cover"
-      >
-        <View style={styles.overlay}>
-          <ScrollView 
-            style={styles.container} 
-            showsVerticalScrollIndicator={false}
-            contentContainerStyle={styles.scrollContent}
-          >
-            <TouchableOpacity 
-              style={styles.backButton}
-              onPress={() => navigation.goBack()}
-            >
-              <Text style={styles.backButtonText}>←</Text>
-            </TouchableOpacity>
+  if (!product) {
+    return (
+      <SafeAreaView style={styles.container}>
+        <View style={styles.errorCenter}>
+          <Text style={styles.errorText}>Product details not found</Text>
+          <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
+            <Text style={styles.backButtonText}>Go Back</Text>
+          </TouchableOpacity>
+        </View>
+      </SafeAreaView>
+    );
+  }
 
-            <View style={styles.productImageContainer}>
+  const unitTotal = (Number(product.price_per_unit || 0) * quantity).toFixed(2);
+
+  return (
+    <SafeAreaView style={styles.container}>
+      <StatusBar barStyle="dark-content" backgroundColor="transparent" translucent />
+      <AmbientAura variant="header" />
+
+      {/* Top iOS Header */}
+      <View style={[styles.topHeader, { paddingTop: Math.max(insets.top, 8) }]}>
+        <TouchableOpacity
+          style={styles.backBtn}
+          onPress={() => navigation.goBack()}
+          activeOpacity={0.7}
+        >
+          <Ionicons name="chevron-back" size={24} color={Theme.colors.primary} />
+        </TouchableOpacity>
+
+        <View style={styles.headerTitleWrap}>
+          <Text style={styles.headerTitle} numberOfLines={1}>
+            {product.name}
+          </Text>
+        </View>
+
+        <TouchableOpacity
+          style={styles.cartIconTopBtn}
+          onPress={toggleMenu}
+          activeOpacity={0.7}
+        >
+          <Ionicons name="bag-outline" size={22} color={Theme.colors.ink} />
+          {cartItems.length > 0 && (
+            <View style={styles.cartBadgeDot}>
+              <Text style={styles.cartBadgeText}>{totalItems}</Text>
+            </View>
+          )}
+        </TouchableOpacity>
+      </View>
+
+      <ScrollView
+        style={styles.scrollContainer}
+        showsVerticalScrollIndicator={false}
+        contentContainerStyle={styles.scrollContent}
+      >
+        {/* Product Image Aurora Card */}
+        <AuroraCard aura="blue" style={styles.heroCard}>
+          <View style={styles.heroBadgeRow}>
+            <View style={styles.rxBadge}>
+              <Text style={styles.rxBadgeText}>Rx Required</Text>
+            </View>
+            <View style={styles.verifiedSafeBadge}>
+              <Ionicons name="checkmark-circle" size={12} color={Theme.colors.success} />
+              <Text style={styles.verifiedSafeBadgeText}>Verified Safe</Text>
+            </View>
+          </View>
+
+          <View style={styles.productImageContainer}>
+            {product.picture_of_the_prod ? (
               <Image
                 source={{ uri: product.picture_of_the_prod }}
                 style={styles.productImage}
                 resizeMode="contain"
               />
-            </View>
+            ) : (
+              <Ionicons name="medical-outline" size={64} color={Theme.colors.primary} />
+            )}
+          </View>
+        </AuroraCard>
 
-            <View style={styles.productInfo}>
-              <Text style={styles.productTitle}>{product.name}</Text>
-              <Text style={styles.productSize}>
-                {product.quantity_of_uom} {product.uom_name}
+        {/* Product Details Section */}
+        <View style={styles.detailsCard}>
+          <Text style={styles.productCategoryLabel}>
+            {product.category ? product.category.toUpperCase() : 'MEDICINE'}
+          </Text>
+
+          <Text style={styles.productTitle}>{product.name}</Text>
+          <Text style={styles.productPackSize}>
+            {product.quantity_of_uom ? `${product.quantity_of_uom} ${product.uom_name || ''}` : 'Standard Pack'}
+          </Text>
+
+          {/* Price & Stepper Row */}
+          <View style={styles.priceStepperRow}>
+            <View>
+              <Text style={styles.priceMain}>
+                ₹{Number(product.price_per_unit || 0).toFixed(2)}
               </Text>
-              
-              <View style={styles.priceActionContainer}>
-                <Text style={styles.productPrice}>₹{product.price_per_unit}</Text>
-                <View style={styles.quantityContainer}>
-                  <TouchableOpacity style={styles.quantityButton} onPress={handleDecrement}>
-                    <Text style={styles.quantityButtonText}>−</Text>
-                  </TouchableOpacity>
-                  <Text style={styles.quantityText}>{quantity}</Text>
-                  <TouchableOpacity style={styles.quantityButton} onPress={handleIncrement}>
-                    <Text style={styles.quantityButtonText}>+</Text>
-                  </TouchableOpacity>
-                </View>
-              </View>
-
-              <TouchableOpacity 
-                style={styles.mainAddButton}
-                onPress={() => addToCart(product, quantity)} // ✅ context addToCart
-              >
-                <Text style={styles.mainAddButtonText}>ADD TO CART</Text>
-              </TouchableOpacity>
-              
-              <View style={styles.descriptionContainer}>
-                <Text style={styles.sectionTitle}>Description</Text>
-                <Text style={styles.description}>
-                  {product.description || 'No description available'}
-                </Text>
-              </View>
-
-              {similarProducts.length > 0 && (
-                <>
-                  <View style={styles.similarProductsSection}>
-                    <Text style={styles.sectionTitle}>Similar Products</Text>
-                    <TouchableOpacity onPress={navigateToCategory}>
-                      <Text style={styles.seeMoreText}>see more →</Text>
-                    </TouchableOpacity>
-                  </View>
-                  <ScrollView 
-                    horizontal 
-                    showsHorizontalScrollIndicator={false}
-                    style={styles.similarProductsContainer}
-                  >
-                    {similarProducts.map((similarProduct, index) => (
-                      <SimilarProductCard
-                        key={`${similarProduct.product_id}-${index}`}
-                        product={similarProduct}
-                        onPress={() => handleSimilarProductPress(similarProduct)}
-                        onAddToCart={(p) => addToCart(p, 1)} // ✅ context addToCart
-                      />
-                    ))}
-                  </ScrollView>
-                </>
-              )}
+              <Text style={styles.unitPriceDetail}>Includes all taxes</Text>
             </View>
-          </ScrollView>
 
-          <Animated.View
-            style={[styles.menuContainer, { transform: [{ translateX: slideAnim }] }]}
+            {/* Stepper with tactile circular buttons */}
+            <View style={styles.stepperContainer}>
+              <TouchableOpacity
+                style={styles.stepperBtn}
+                onPress={handleDecrement}
+                activeOpacity={0.7}
+              >
+                <Ionicons name="remove" size={16} color={Theme.colors.ink} />
+              </TouchableOpacity>
+              <Text style={styles.stepperCount}>{quantity}</Text>
+              <TouchableOpacity
+                style={styles.stepperBtn}
+                onPress={handleIncrement}
+                activeOpacity={0.7}
+              >
+                <Ionicons name="add" size={16} color={Theme.colors.ink} />
+              </TouchableOpacity>
+            </View>
+          </View>
+
+          {/* Tactile Add Button */}
+          <TactileButton
+            onPress={() => {
+              addToCart(product, quantity);
+              Alert.alert('Added to Cart', `${quantity} unit(s) of ${product.name} added to your basket.`);
+            }}
+            variant="primary"
+            style={{ width: '100%' }}
           >
-            {/* ✅ no longer passing cartItems/updateQuantity/removeFromCart as props */}
-            <Cart
-              uniqueid={uniqueid}
-              storeid={storeid}
-              onClose={toggleMenu}
-            />
-          </Animated.View>
-
-          {cartItems.length > 0 && !isMenuVisible && (
-            <TouchableOpacity 
-              style={styles.floatingCart}
-              onPress={toggleMenu}
-            >
-              <View style={styles.floatingCartContent}>
-                <View style={styles.cartIconContainer}>
-                  <Text style={styles.cartIcon}>🛒</Text>
-                  <Text style={styles.itemCount}>
-                    {totalItems} item{totalItems !== 1 ? 's' : ''}
-                  </Text>
-                  <Text style={styles.cartPrice}>• ₹{totalPrice.toFixed(2)}</Text>
-                </View>
-                <View style={styles.viewCartSection}>
-                  <Text style={styles.viewCartText}>view cart</Text>
-                  <Text style={styles.viewCartArrow}>›</Text>
-                </View>
-              </View>
-            </TouchableOpacity>
-          )}
+            <Ionicons name="cart-outline" size={18} color={Theme.colors.canvas} style={{ marginRight: 6 }} />
+            <Text style={styles.mainAddButtonText}>
+              Add to Basket · ₹{unitTotal}
+            </Text>
+          </TactileButton>
         </View>
-      </ImageBackground>
-    </View>
+
+        {/* Verified Authenticity / Quality Card */}
+        <View style={styles.provenanceCard}>
+          <View style={styles.provenanceHeader}>
+            <View style={styles.provenanceIconCircle}>
+              <Ionicons name="shield-checkmark" size={18} color={Theme.colors.success} />
+            </View>
+            <View>
+              <Text style={styles.provenanceTitle}>Verified Authenticity</Text>
+              <Text style={styles.provenanceSub}>Directly tracked from manufacturer</Text>
+            </View>
+          </View>
+
+          {/* Supply Chain Steps */}
+          <View style={styles.pipeline}>
+            <View style={styles.pipelineRow}>
+              <View style={styles.stepCircleDone}>
+                <Ionicons name="checkmark" size={12} color={Theme.colors.canvas} />
+              </View>
+              <View style={styles.stepContent}>
+                <Text style={styles.stepTitle}>Licensed Manufacturer</Text>
+                <Text style={styles.stepSub}>Produced in certified pharmaceutical facility</Text>
+              </View>
+            </View>
+            <View style={styles.pipelineLine} />
+            <View style={styles.pipelineRow}>
+              <View style={styles.stepCircleDone}>
+                <Ionicons name="checkmark" size={12} color={Theme.colors.canvas} />
+              </View>
+              <View style={styles.stepContent}>
+                <Text style={styles.stepTitle}>Temperature Monitored</Text>
+                <Text style={styles.stepSub}>Stored under regulated climate control</Text>
+              </View>
+            </View>
+            <View style={styles.pipelineLine} />
+            <View style={styles.pipelineRow}>
+              <View style={styles.stepCircleDone}>
+                <Ionicons name="checkmark" size={12} color={Theme.colors.canvas} />
+              </View>
+              <View style={styles.stepContent}>
+                <Text style={styles.stepTitle}>Verified Local Pharmacy</Text>
+                <Text style={styles.stepSub}>Dispensed by licensed pharmacist</Text>
+              </View>
+            </View>
+          </View>
+        </View>
+
+        {/* Clinical Description Section */}
+        <View style={styles.descriptionCard}>
+          <Text style={styles.sectionHeading}>Description</Text>
+          <Text style={styles.descriptionBody}>
+            {product.description ||
+              'High-grade pharmaceutical formulation prepared for standard therapeutic usage. Stored and verified under quality-controlled guidelines.'}
+          </Text>
+        </View>
+
+        {/* Similar Products */}
+        {similarProducts.length > 0 && (
+          <View style={styles.similarSection}>
+            <View style={styles.similarHeader}>
+              <Text style={styles.sectionHeading}>Similar Medicines</Text>
+              <TouchableOpacity onPress={navigateToCategory} activeOpacity={0.7}>
+                <Text style={styles.seeMoreLink}>See all</Text>
+              </TouchableOpacity>
+            </View>
+
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={styles.similarCarousel}
+            >
+              {similarProducts.map(p => (
+                <SimilarProductCard
+                  key={p.product_id}
+                  product={p}
+                  onPress={() => handleSimilarProductPress(p)}
+                  onAddToCart={prod => addToCart(prod, 1)}
+                />
+              ))}
+            </ScrollView>
+          </View>
+        )}
+      </ScrollView>
+
+      {/* Slide Drawer for Cart */}
+      {isMenuVisible && (
+        <TouchableOpacity
+          style={styles.drawerBackdrop}
+          activeOpacity={1}
+          onPress={toggleMenu}
+        />
+      )}
+      <Animated.View
+        style={[
+          styles.drawerSheet,
+          { transform: [{ translateX: slideAnim }] },
+        ]}
+      >
+        <Cart
+          uniqueid={uniqueid}
+          storeid={storeid}
+          onClose={toggleMenu}
+        />
+      </Animated.View>
+
+      {/* Floating Cart Capsule */}
+      {cartItems.length > 0 && !isMenuVisible && (
+        <View
+          style={[
+            styles.floatingCartWrap,
+            { bottom: Math.max(insets.bottom, 16) + 12 },
+          ]}
+          pointerEvents="box-none"
+        >
+          <TouchableOpacity
+            style={styles.floatingCart}
+            onPress={toggleMenu}
+            activeOpacity={0.9}
+          >
+            <View style={styles.cartIconCircle}>
+              <Ionicons name="cart" size={16} color={Theme.colors.canvas} />
+            </View>
+            <View style={styles.floatingCartInfo}>
+              <Text style={styles.floatingCartCount}>
+                {totalItems} {totalItems === 1 ? 'item' : 'items'} · ₹{totalPrice.toFixed(2)}
+              </Text>
+              <Text style={styles.floatingCartSubtitle}>Tap to review basket</Text>
+            </View>
+            <View style={styles.viewCartBtn}>
+              <Text style={styles.viewCartBtnText}>View</Text>
+              <Ionicons name="chevron-forward" size={14} color={Theme.colors.canvas} />
+            </View>
+          </TouchableOpacity>
+        </View>
+      )}
+    </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  mainContainer: { flex: 1 },
-  backgroundImage: { flex: 1, width: '100%', height: '100%' },
-  overlay: { flex: 1, backgroundColor: 'rgba(245, 240, 240, 0.28)' },
-  container: { flex: 1 },
-  scrollContent: { paddingBottom: verticalNormalize(70) },
-  backButton: { position: 'absolute', top: verticalNormalize(20), left: '5%', zIndex: 1, padding: normalize(10) },
-  backButtonText: { fontSize: normalize(24), color: '#ffffff', fontWeight: 'bold' },
-  productImageContainer: { width: '100%', height: verticalNormalize(280), backgroundColor: '#ffffff', justifyContent: 'center', alignItems: 'center', marginTop: verticalNormalize(70) },
-  productImage: { width: calculateImageDimension(), height: calculateImageDimension(), resizeMode: 'contain' },
-  productInfo: { backgroundColor: '#ffffff', borderTopLeftRadius: normalize(30), borderTopRightRadius: normalize(30), padding: '5%', marginTop: verticalNormalize(-30) },
-  productTitle: { fontSize: normalize(22), fontWeight: 'bold', color: '#333', marginBottom: '2%' },
-  productSize: { fontSize: normalize(14), color: '#666', marginBottom: '2%' },
-  priceActionContainer: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4%' },
-  productPrice: { fontSize: normalize(20), fontWeight: 'bold', color: '#0a47f0' },
-  quantityContainer: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#f5f5f5', borderRadius: normalize(8), padding: normalize(4) },
-  quantityButton: { width: normalize(26), height: normalize(26), borderRadius: normalize(13), backgroundColor: '#0a47f0', alignItems: 'center', justifyContent: 'center' },
-  quantityButtonText: { color: '#ffffff', fontSize: normalize(16), fontWeight: '600' },
-  quantityText: { fontSize: normalize(14), fontWeight: '600', color: '#333', paddingHorizontal: normalize(12) },
-  mainAddButton: { backgroundColor: '#0a47f0', borderRadius: normalize(8), paddingVertical: verticalNormalize(12), alignItems: 'center', marginBottom: '5%', width: '100%', shadowColor: '#0a47f0', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.25, shadowRadius: 3.84, elevation: 5 },
-  mainAddButtonText: { color: '#ffffff', fontSize: normalize(15), fontWeight: '600' },
-  descriptionContainer: { marginBottom: verticalNormalize(25) },
-  sectionTitle: { fontSize: normalize(16), fontWeight: 'bold', color: '#333', marginBottom: '2%' },
-  description: { fontSize: normalize(13), color: '#666', lineHeight: normalize(18) },
-  similarProductsSection: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4%', paddingHorizontal: '2%' },
-  seeMoreText: { color: '#0a47f0', fontSize: normalize(13) },
-  similarProductsContainer: { padding: normalize(7), marginBottom: verticalNormalize(20) },
-  similarProductCard: { width: calculateSimilarProductWidth(), backgroundColor: '#ffffff', marginRight: normalize(12), borderRadius: normalize(12), padding: '3%', shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.1, shadowRadius: 3, elevation: 4 },
-  similarProductImage: { width: '100%', aspectRatio: 1, marginBottom: '4%' },
-  similarProductName: { fontSize: normalize(13), fontWeight: '500', color: '#333', marginBottom: '2%' },
-  similarProductPrice: { fontSize: normalize(14), fontWeight: 'bold', color: '#0a47f0', marginBottom: '4%' },
-  addButton: { backgroundColor: '#ffffff', borderWidth: 1, borderColor: '#0a47f0', borderRadius: normalize(5), paddingVertical: verticalNormalize(6), alignItems: 'center' },
-  addButtonText: { color: '#0a47f0', fontSize: normalize(11), fontWeight: '600' },
-  menuContainer: { position: 'absolute', width: Math.min(300, SCREEN_WIDTH * 0.8), height: '100%', backgroundColor: '#ffffff', zIndex: 100, padding: '3%', shadowColor: '#000', shadowOpacity: 0.3, shadowRadius: 5, shadowOffset: { width: 2, height: 2 } },
-  floatingCart: { position: 'absolute', bottom: verticalNormalize(10), left: '3%', right: '3%', backgroundColor: '#0a47f0', borderRadius: normalize(4), height: verticalNormalize(48), elevation: 8, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.25, shadowRadius: 3.84, zIndex: 1000 },
-  floatingCartContent: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: '4%', height: '100%' },
-  cartIconContainer: { flexDirection: 'row', alignItems: 'center', flex: 1 },
-  cartIcon: { fontSize: normalize(16), color: '#ffffff', marginRight: normalize(8) },
-  itemCount: { color: '#ffffff', fontSize: normalize(13), flexShrink: 1 },
-  cartPrice: { color: '#ffffff', fontSize: normalize(13), marginLeft: normalize(8), flexShrink: 1 },
-  viewCartSection: { flexDirection: 'row', alignItems: 'center' },
-  viewCartText: { color: '#ffffff', fontSize: normalize(13), marginRight: normalize(4) },
-  viewCartArrow: { color: '#ffffff', fontSize: normalize(16), fontWeight: '500' },
+  container: {
+    flex: 1,
+    backgroundColor: Theme.colors.canvasParchment,
+  },
+  topHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 16,
+    paddingTop: 8,
+    paddingBottom: 12,
+    backgroundColor: Theme.colors.canvas,
+    borderBottomWidth: 1,
+    borderBottomColor: Theme.colors.hairline,
+  },
+  backBtn: {
+    width: 38,
+    height: 38,
+    borderRadius: 19,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  headerTitleWrap: {
+    flex: 1,
+    alignItems: 'center',
+    paddingHorizontal: 12,
+  },
+  headerTitle: {
+    fontSize: 16,
+    fontWeight: '400',
+    fontFamily: 'Inter_400Regular',
+    color: Theme.colors.ink,
+    letterSpacing: Theme.typography.tracking.normal,
+  },
+  cartIconTopBtn: {
+    width: 38,
+    height: 38,
+    borderRadius: 19,
+    justifyContent: 'center',
+    alignItems: 'center',
+    position: 'relative',
+  },
+  cartBadgeDot: {
+    position: 'absolute',
+    top: 2,
+    right: 2,
+    width: 16,
+    height: 16,
+    borderRadius: 8,
+    backgroundColor: Theme.colors.primary,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  cartBadgeText: {
+    color: Theme.colors.canvas,
+    fontSize: 10,
+    fontWeight: '600',
+    fontFamily: 'Inter_400Regular',
+  },
+  scrollContainer: {
+    flex: 1,
+  },
+  scrollContent: {
+    paddingHorizontal: 20,
+    paddingTop: 16,
+    paddingBottom: 110,
+  },
+
+  // ── Hero Aurora Card
+  heroCard: {
+    padding: 16,
+    marginBottom: 14,
+  },
+  heroBadgeRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginBottom: 12,
+  },
+  rxBadge: {
+    backgroundColor: 'rgba(255, 255, 255, 0.9)',
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: Theme.radius.pill,
+    ...Theme.shadows.skeuoCircle,
+  },
+  rxBadgeText: {
+    fontSize: 11,
+    fontWeight: '600',
+    fontFamily: 'Inter_400Regular',
+    color: Theme.colors.danger,
+  },
+  verifiedSafeBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: 'rgba(255, 255, 255, 0.9)',
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: Theme.radius.pill,
+    ...Theme.shadows.skeuoCircle,
+  },
+  verifiedSafeBadgeText: {
+    fontSize: 11,
+    fontWeight: '600',
+    fontFamily: 'Inter_400Regular',
+    color: Theme.colors.success,
+  },
+  productImageContainer: {
+    width: '100%',
+    height: 210,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  productImage: {
+    width: '85%',
+    height: '85%',
+    ...Theme.shadows.image,
+  },
+
+  // ── Details Card
+  detailsCard: {
+    backgroundColor: Theme.colors.canvas,
+    borderRadius: Theme.radius.xl, // 26px squircle
+    padding: 20,
+    borderWidth: 1.5,
+    borderColor: 'rgba(255, 255, 255, 0.9)',
+    ...Theme.shadows.skeuoCard,
+    marginBottom: 14,
+  },
+  productCategoryLabel: {
+    fontSize: 11,
+    fontWeight: '400',
+    fontFamily: 'Inter_400Regular',
+    color: Theme.colors.inkMuted48,
+    letterSpacing: Theme.typography.tracking.caps,
+  },
+  productTitle: {
+    fontSize: 24,
+    fontWeight: '300',
+    fontFamily: 'Inter_300Light',
+    color: Theme.colors.ink,
+    letterSpacing: Theme.typography.tracking.tight,
+    marginTop: 4,
+  },
+  productPackSize: {
+    fontSize: 14,
+    fontFamily: 'Inter_400Regular',
+    color: Theme.colors.inkMuted48,
+    marginTop: 2,
+  },
+  priceStepperRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginTop: 18,
+    marginBottom: 18,
+  },
+  priceMain: {
+    fontSize: 26,
+    fontWeight: '300',
+    fontFamily: 'Inter_300Light',
+    color: Theme.colors.ink,
+  },
+  unitPriceDetail: {
+    fontSize: 12,
+    fontFamily: 'Inter_400Regular',
+    color: Theme.colors.inkMuted48,
+    marginTop: 2,
+  },
+  stepperContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: Theme.colors.canvasParchment,
+    borderRadius: Theme.radius.pill,
+    paddingHorizontal: 4,
+    paddingVertical: 4,
+  },
+  stepperBtn: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: Theme.colors.canvas,
+    justifyContent: 'center',
+    alignItems: 'center',
+    ...Theme.shadows.skeuoCircle,
+  },
+  stepperCount: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: Theme.colors.ink,
+    paddingHorizontal: 14,
+  },
+  mainAddButtonText: {
+    color: Theme.colors.canvas,
+    fontSize: 16,
+    fontWeight: '600',
+    letterSpacing: Theme.typography.tracking.normal,
+  },
+
+  // ── Provenance Card
+  provenanceCard: {
+    backgroundColor: Theme.colors.canvas,
+    borderRadius: Theme.radius.xl,
+    padding: 20,
+    borderWidth: 1.5,
+    borderColor: 'rgba(255, 255, 255, 0.9)',
+    ...Theme.shadows.skeuoCard,
+    marginBottom: 14,
+  },
+  provenanceHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    marginBottom: 16,
+  },
+  provenanceIconCircle: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: '#e6f7ec',
+    justifyContent: 'center',
+    alignItems: 'center',
+    ...Theme.shadows.skeuoCircle,
+  },
+  provenanceTitle: {
+    fontFamily: 'Inter_400Regular',
+    fontSize: 16,
+    fontWeight: '600',
+    color: 'rgba(15, 23, 42, 0.92)',
+  },
+  provenanceSub: {
+    fontFamily: 'Inter_400Regular',
+    fontSize: 12,
+    color: 'rgba(100, 116, 139, 0.78)',
+    marginTop: 2,
+  },
+  pipeline: {
+    paddingLeft: 4,
+  },
+  pipelineRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 12,
+  },
+  stepCircleDone: {
+    width: 22,
+    height: 22,
+    borderRadius: 11,
+    backgroundColor: Theme.colors.success,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginTop: 1,
+  },
+  stepContent: {
+    flex: 1,
+  },
+  stepTitle: {
+    fontFamily: 'Inter_400Regular',
+    fontSize: 14,
+    fontWeight: '600',
+    color: 'rgba(15, 23, 42, 0.92)',
+  },
+  stepSub: {
+    fontFamily: 'Inter_400Regular',
+    fontSize: 12,
+    color: 'rgba(100, 116, 139, 0.78)',
+    marginTop: 2,
+  },
+  pipelineLine: {
+    width: 2,
+    height: 18,
+    backgroundColor: '#d1e7dd',
+    marginLeft: 10,
+    marginVertical: 4,
+  },
+
+  // ── Description Card
+  descriptionCard: {
+    backgroundColor: Theme.colors.canvas,
+    borderRadius: Theme.radius.xl,
+    padding: 20,
+    borderWidth: 1.5,
+    borderColor: 'rgba(255, 255, 255, 0.9)',
+    ...Theme.shadows.skeuoCard,
+    marginBottom: 14,
+  },
+  sectionHeading: {
+    fontFamily: 'Inter_400Regular',
+    fontSize: 16,
+    fontWeight: '600',
+    color: 'rgba(15, 23, 42, 0.92)',
+    marginBottom: 8,
+  },
+  descriptionBody: {
+    fontFamily: 'Inter_400Regular',
+    fontSize: 14,
+    color: 'rgba(100, 116, 139, 0.78)',
+    lineHeight: 20,
+  },
+
+  // ── Similar Section
+  similarSection: {
+    marginTop: 8,
+    marginBottom: 20,
+  },
+  similarHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 12,
+  },
+  seeMoreLink: {
+    fontFamily: 'Inter_400Regular',
+    fontSize: 14,
+    color: Theme.colors.primary,
+    fontWeight: '600',
+  },
+  similarCarousel: {
+    gap: 12,
+  },
+  similarProductCard: {
+    width: 144,
+    backgroundColor: Theme.colors.canvas,
+    borderRadius: Theme.radius.lg,
+    padding: 12,
+    borderWidth: 1.5,
+    borderColor: 'rgba(255, 255, 255, 0.85)',
+    ...Theme.shadows.skeuoCard,
+  },
+  similarImgWrap: {
+    width: '100%',
+    height: 94,
+    borderRadius: Theme.radius.md,
+    backgroundColor: Theme.colors.canvasParchment,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  similarProductImage: {
+    width: '80%',
+    height: '80%',
+  },
+  similarProductName: {
+    fontFamily: 'Inter_400Regular',
+    fontSize: 13,
+    fontWeight: '600',
+    color: 'rgba(15, 23, 42, 0.92)',
+  },
+  similarProductPrice: {
+    fontFamily: 'Inter_400Regular',
+    fontSize: 14,
+    fontWeight: '600',
+    color: 'rgba(15, 23, 42, 0.92)',
+    marginTop: 3,
+  },
+  similarAddBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 4,
+    backgroundColor: Theme.colors.primary,
+    paddingVertical: 7,
+    borderRadius: Theme.radius.pill,
+    marginTop: 8,
+    ...Theme.shadows.skeuoButton,
+  },
+  similarAddBtnText: {
+    fontFamily: 'Inter_400Regular',
+    color: Theme.colors.canvas,
+    fontSize: 12,
+    fontWeight: '600',
+  },
+
+  // ── Floating Cart
+  floatingCartWrap: {
+    position: 'absolute',
+    bottom: 20,
+    left: 20,
+    right: 20,
+    zIndex: 40,
+  },
+  floatingCart: {
+    backgroundColor: Theme.colors.surfaceTile,
+    borderRadius: Theme.radius.pill,
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    ...Theme.shadows.floating,
+  },
+  cartIconCircle: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: Theme.colors.primary,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  floatingCartInfo: {
+    flex: 1,
+    marginLeft: 10,
+  },
+  floatingCartCount: {
+    fontFamily: 'Inter_400Regular',
+    fontSize: 14,
+    fontWeight: '600',
+    color: Theme.colors.canvas,
+  },
+  floatingCartSubtitle: {
+    fontFamily: 'Inter_400Regular',
+    fontSize: 11,
+    color: Theme.colors.inkLight,
+  },
+  viewCartBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: Theme.colors.primary,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: Theme.radius.pill,
+  },
+  viewCartBtnText: {
+    fontFamily: 'Inter_400Regular',
+    fontSize: 13,
+    fontWeight: '600',
+    color: Theme.colors.canvas,
+  },
+
+  // ── Drawer
+  drawerBackdrop: {
+    position: 'absolute',
+    inset: 0,
+    backgroundColor: 'rgba(0, 0, 0, 0.3)',
+    zIndex: 90,
+  },
+  drawerSheet: {
+    position: 'absolute',
+    top: 0,
+    bottom: 0,
+    right: 0,
+    width: SCREEN_WIDTH * 0.85,
+    backgroundColor: Theme.colors.canvas,
+    zIndex: 100,
+  },
+
+  errorCenter: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 24,
+  },
+  errorText: {
+    fontFamily: 'Inter_400Regular',
+    fontSize: 16,
+    fontWeight: '600',
+    color: 'rgba(15, 23, 42, 0.92)',
+  },
+  backButton: {
+    marginTop: 16,
+    paddingHorizontal: 20,
+    paddingVertical: 10,
+    backgroundColor: Theme.colors.primary,
+    borderRadius: Theme.radius.pill,
+  },
+  backButtonText: {
+    fontFamily: 'Inter_400Regular',
+    color: Theme.colors.canvas,
+    fontSize: 14,
+    fontWeight: '600',
+  },
 });

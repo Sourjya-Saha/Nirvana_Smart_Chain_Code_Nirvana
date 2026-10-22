@@ -4,31 +4,28 @@ import {
   Text,
   StyleSheet,
   FlatList,
-  ActivityIndicator,
   TouchableOpacity,
   Animated,
   Image,
-  Platform,
-  UIManager,
+  StatusBar,
+  ScrollView,
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
+import Theme from '../../../constants/theme';
+import { SkeletonCard } from '../../../components/SkeletonLoader';
+import AmbientAura from '../../../components/AmbientAura';
 
-// Enable LayoutAnimation on Android
-if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental) {
-  UIManager.setLayoutAnimationEnabledExperimental(true);
-}
-
-// ─── Global product cache (mirrors HomeCon exactly) ──────────────────────────
-let _cachedMap   = null;
-let _lastFetch   = null;
-const CACHE_MS   = 5 * 60 * 1000;
+let _cachedMap = null;
+let _lastFetch = null;
+const CACHE_MS = 5 * 60 * 1000;
 
 const getProductCache = async () => {
   if (_cachedMap && _lastFetch && Date.now() - _lastFetch < CACHE_MS) return _cachedMap;
-  const res  = await fetch('http://127.0.0.1:5000/getAllProductsGlobal');
+  const res = await fetch('http://192.168.29.173:5000/getAllProductsGlobal');
   if (!res.ok) throw new Error(`HTTP ${res.status}`);
   const data = await res.json();
-  _cachedMap  = new Map();
+  _cachedMap = new Map();
   data.forEach(p => {
     _cachedMap.set(String(p.product_id), p);
     _cachedMap.set(Number(p.product_id), p);
@@ -37,76 +34,79 @@ const getProductCache = async () => {
   return _cachedMap;
 };
 
-// ─── Custom Toggle ────────────────────────────────────────────────────────────
-const CustomToggle = React.memo(({ onToggle }) => {
-  const [selected, setSelected] = useState(2);
-  const moveAnim = useRef(new Animated.Value(2)).current;
-
-  const handleToggle = useCallback((value) => {
-    Animated.spring(moveAnim, { toValue: value, useNativeDriver: true, speed: 14, bounciness: 6 }).start();
-    setSelected(value);
-    onToggle?.(value);
-  }, [moveAnim, onToggle]);
-
-  const translateX = moveAnim.interpolate({ inputRange: [1, 2], outputRange: [0, 108] });
-
-  return (
-    <View style={styles.toggleContainer}>
-      <View style={styles.toggleWrapper}>
-        <Animated.View style={[styles.highlightBg, { transform: [{ translateX }] }]} />
-        <TouchableOpacity style={styles.toggleOption} onPress={() => handleToggle(1)} activeOpacity={0.9}>
-          <Text style={[styles.toggleText, selected === 1 && styles.selectedText]}>Home</Text>
-        </TouchableOpacity>
-        <TouchableOpacity style={styles.toggleOption} onPress={() => handleToggle(2)} activeOpacity={0.9}>
-          <Text style={[styles.toggleText, selected === 2 && styles.selectedText]}>My Orders</Text>
-        </TouchableOpacity>
-      </View>
-    </View>
-  );
-});
-
-// ─── Status Chip ─────────────────────────────────────────────────────────────
 const StatusChip = ({ status }) => {
-  const paid = status === 'paid';
+  const isPaid = status === 'paid';
   return (
-    <View style={[styles.statusChip, paid ? styles.paidChip : styles.unpaidChip]}>
-      <Ionicons name={paid ? 'checkmark-circle' : 'time-outline'} size={12} color={paid ? '#16a34a' : '#d97706'} />
-      <Text style={[styles.statusText, { color: paid ? '#16a34a' : '#d97706' }]}>
-        {paid ? 'Paid' : 'Pending'}
+    <View
+      style={[
+        styles.statusChip,
+        isPaid ? styles.paidChip : styles.pendingChip,
+      ]}
+    >
+      <Ionicons
+        name={isPaid ? 'checkmark-circle' : 'time-outline'}
+        size={12}
+        color={isPaid ? Theme.colors.success : Theme.colors.inkMuted48}
+      />
+      <Text
+        style={[
+          styles.statusText,
+          { color: isPaid ? Theme.colors.success : Theme.colors.inkMuted48 },
+        ]}
+      >
+        {isPaid ? 'Delivered' : 'Processing'}
       </Text>
     </View>
   );
 };
 
-// ─── Expandable Product Dropdown ─────────────────────────────────────────────
-const ProductDropdown = ({ resolvedProducts, visible }) => {
+const ProductDropdown = ({ resolvedProducts, visible, navigation, uniqueid }) => {
   const anim = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
     Animated.spring(anim, {
       toValue: visible ? 1 : 0,
       useNativeDriver: false,
-      speed: 16,
-      bounciness: 3,
+      speed: 18,
+      bounciness: 2,
     }).start();
   }, [visible]);
 
+  const calculatedHeight = Math.min(resolvedProducts.length * 70 + 44, 340);
   const maxHeight = anim.interpolate({
-    inputRange:  [0, 1],
-    outputRange: [0, Math.min(resolvedProducts.length * 68 + 40, 300)],
+    inputRange: [0, 1],
+    outputRange: [0, calculatedHeight],
   });
-  const opacity = anim.interpolate({ inputRange: [0, 0.4, 1], outputRange: [0, 0, 1] });
+  const opacity = anim.interpolate({ inputRange: [0, 0.35, 1], outputRange: [0, 0.5, 1] });
 
   if (resolvedProducts.length === 0) return null;
 
   return (
     <Animated.View style={[styles.dropdown, { maxHeight, opacity }]}>
-      <View style={styles.dropdownInner}>
-        <Text style={styles.dropdownTitle}>Order Items</Text>
+      <ScrollView
+        nestedScrollEnabled={true}
+        showsVerticalScrollIndicator={false}
+        contentContainerStyle={styles.dropdownInner}
+      >
+        <Text style={styles.dropdownTitle}>Items in this order</Text>
         {resolvedProducts.map((p, i) => (
-          <View
+          <TouchableOpacity
             key={i}
-            style={[styles.dropdownRow, i < resolvedProducts.length - 1 && styles.dropdownRowBorder]}
+            style={[
+              styles.dropdownRow,
+              i < resolvedProducts.length - 1 && styles.dropdownRowBorder,
+            ]}
+            activeOpacity={0.7}
+            onPress={() => {
+              if (navigation) {
+                navigation.navigate('Product', {
+                  product: p,
+                  categoryProducts: [p],
+                  categoryName: p.category,
+                  uniqueid,
+                });
+              }
+            }}
           >
             <Image
               source={{ uri: p.picture_of_the_prod }}
@@ -118,33 +118,33 @@ const ProductDropdown = ({ resolvedProducts, visible }) => {
               <Text style={styles.dropdownCategory}>{p.category}</Text>
             </View>
             <View style={styles.dropdownRight}>
-              <Text style={styles.dropdownPrice}>₹{p.price_per_unit}</Text>
-              <View style={styles.dropdownQtyBadge}>
-                <Text style={styles.dropdownQtyText}>×{p.quantity}</Text>
-              </View>
+              <Text style={styles.dropdownPrice}>
+                ₹{Number(p.price_per_unit || 0).toFixed(2)}
+              </Text>
+              <Text style={styles.dropdownQtyText}>Qty: {p.quantity}</Text>
             </View>
-          </View>
+            <Ionicons name="chevron-forward" size={14} color={Theme.colors.inkMuted48} style={{ marginLeft: 6 }} />
+          </TouchableOpacity>
         ))}
-      </View>
+      </ScrollView>
     </Animated.View>
   );
 };
 
-// ─── Order Card ───────────────────────────────────────────────────────────────
-const OrderCard = React.memo(({ item, index, productMap }) => {
+const OrderCard = React.memo(({ item, index, productMap, navigation, uniqueid }) => {
   const [expanded, setExpanded] = useState(false);
-  const fadeAnim   = useRef(new Animated.Value(0)).current;
-  const slideAnim  = useRef(new Animated.Value(28)).current;
+  const fadeAnim = useRef(new Animated.Value(0)).current;
   const rotateAnim = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
-    Animated.parallel([
-      Animated.timing(fadeAnim,  { toValue: 1, duration: 380, delay: index * 70, useNativeDriver: true }),
-      Animated.spring(slideAnim, { toValue: 0, speed: 14, bounciness: 4, delay: index * 70, useNativeDriver: true }),
-    ]).start();
+    Animated.timing(fadeAnim, {
+      toValue: 1,
+      duration: 300,
+      delay: index * 40,
+      useNativeDriver: true,
+    }).start();
   }, []);
 
-  // Resolve products — handles multiple possible API shapes
   const resolvedProducts = React.useMemo(() => {
     if (!productMap) return [];
     let details = [];
@@ -155,7 +155,7 @@ const OrderCard = React.memo(({ item, index, productMap }) => {
     } else if (Array.isArray(item.product_ids)) {
       details = item.product_ids.map((pid, i) => ({
         pid,
-        qty: Array.isArray(item.quantities) ? (item.quantities[i] ?? 1) : 1,
+        qty: Array.isArray(item.quantities) ? item.quantities[i] ?? 1 : 1,
       }));
     }
     return details
@@ -170,114 +170,137 @@ const OrderCard = React.memo(({ item, index, productMap }) => {
     setExpanded(v => !v);
     Animated.timing(rotateAnim, {
       toValue: expanded ? 0 : 1,
-      duration: 220,
+      duration: 200,
       useNativeDriver: true,
     }).start();
   }, [expanded, rotateAnim]);
 
-  const chevronRotate = rotateAnim.interpolate({ inputRange: [0, 1], outputRange: ['0deg', '180deg'] });
+  const chevronRotate = rotateAnim.interpolate({
+    inputRange: [0, 1],
+    outputRange: ['0deg', '180deg'],
+  });
 
-  const thumbs    = resolvedProducts.slice(0, 3);
-  const extra     = resolvedProducts.length - 3;
-  const itemCount = resolvedProducts.length || (item.order_details?.length ?? 0);
+  const thumbs = resolvedProducts.slice(0, 3);
+  const extra = resolvedProducts.length - 3;
+  const isDelivered = item.status === 'paid';
 
   return (
-    <Animated.View style={[styles.cardWrapper, { opacity: fadeAnim, transform: [{ translateY: slideAnim }] }]}>
-      <TouchableOpacity activeOpacity={0.95} onPress={toggleExpand} style={styles.card}>
-
-        {/* Left panel */}
-        <View style={styles.cardLeft}>
-          <View style={styles.boxIcon}>
-            <Ionicons name="cube-outline" size={20} color="#0a47f0" />
-          </View>
-          <Text style={styles.deliveryLabel}>
-            {item.status === 'paid' ? 'Delivered' : 'Placed'}
-          </Text>
-          <Text style={styles.dateText}>{item.date_time}</Text>
-          <Text style={styles.customerName} numberOfLines={1}>{item.customer_name}</Text>
-          {itemCount > 0 && (
-            <View style={styles.itemCountBadge}>
-              <Text style={styles.itemCountText}>{itemCount} item{itemCount !== 1 ? 's' : ''}</Text>
+    <Animated.View style={[styles.cardWrapper, { opacity: fadeAnim }]}>
+      <TouchableOpacity
+        activeOpacity={0.8}
+        onPress={toggleExpand}
+        style={styles.card}
+      >
+        {/* Card Header Strip */}
+        <View style={styles.cardHeader}>
+          <View style={styles.orderIdRow}>
+            <View style={styles.parcelIconWrap}>
+              <Ionicons
+                name={isDelivered ? 'cube-outline' : 'time-outline'}
+                size={18}
+                color={Theme.colors.primary}
+              />
             </View>
-          )}
-        </View>
-
-        {/* Right panel */}
-        <View style={styles.cardRight}>
-          <View style={styles.priceRow}>
-            <Text style={styles.priceText}>₹{item.total}</Text>
-            <View style={styles.priceRowRight}>
-              <StatusChip status={item.status} />
-              <Animated.View style={{ transform: [{ rotate: chevronRotate }], marginLeft: 6 }}>
-                <Ionicons name="chevron-down" size={16} color="#9ca3af" />
-              </Animated.View>
+            <View>
+              <Text style={styles.deliveryStatusText}>
+                Order #{item.order_id}
+              </Text>
+              <Text style={styles.orderNumberText}>
+                {item.date_time || 'Recent order'}
+              </Text>
             </View>
           </View>
 
-          {/* Thumbnail strip */}
-          {thumbs.length > 0 ? (
-            <View style={styles.thumbStrip}>
-              {thumbs.map((p, i) => (
-                <View key={i} style={styles.thumbBox}>
-                  <Image source={{ uri: p.picture_of_the_prod }} style={styles.thumbImg} resizeMode="contain" />
-                  {p.quantity > 1 && (
-                    <View style={styles.thumbQty}>
-                      <Text style={styles.thumbQtyText}>{p.quantity}</Text>
-                    </View>
-                  )}
-                </View>
-              ))}
-              {extra > 0 && (
-                <View style={[styles.thumbBox, styles.extraBox]}>
-                  <Text style={styles.extraText}>+{extra}</Text>
-                </View>
-              )}
-            </View>
-          ) : (
-            <View style={styles.orderIdRow}>
-              <Ionicons name="receipt-outline" size={13} color="#9ca3af" />
-              <Text style={styles.orderIdText}>Order #{item.order_id}</Text>
-            </View>
-          )}
-
-          {/* Rate button only */}
-          <TouchableOpacity style={styles.rateBtn} activeOpacity={0.8}>
-            <Ionicons name="star-outline" size={13} color="#d97706" />
-            <Text style={styles.rateText}>Rate Products</Text>
-          </TouchableOpacity>
+          <View style={styles.headerRightStatus}>
+            <StatusChip status={item.status} />
+          </View>
         </View>
 
+        {/* Thumbnail Preview Strip */}
+        {thumbs.length > 0 ? (
+          <View style={styles.thumbStrip}>
+            {thumbs.map((p, i) => (
+              <TouchableOpacity
+                key={i}
+                style={styles.thumbBox}
+                activeOpacity={0.7}
+                onPress={() => {
+                  if (navigation) {
+                    navigation.navigate('Product', {
+                      product: p,
+                      categoryProducts: [p],
+                      categoryName: p.category,
+                      uniqueid,
+                    });
+                  }
+                }}
+              >
+                <Image
+                  source={{ uri: p.picture_of_the_prod }}
+                  style={styles.thumbImg}
+                  resizeMode="contain"
+                />
+                {p.quantity > 1 && (
+                  <View style={styles.thumbQty}>
+                    <Text style={styles.thumbQtyText}>{p.quantity}</Text>
+                  </View>
+                )}
+              </TouchableOpacity>
+            ))}
+            {extra > 0 && (
+              <TouchableOpacity
+                style={[styles.thumbBox, styles.extraBox]}
+                activeOpacity={0.7}
+                onPress={toggleExpand}
+              >
+                <Text style={styles.extraText}>+{extra}</Text>
+              </TouchableOpacity>
+            )}
+          </View>
+        ) : null}
+
+        {/* Card Footer */}
+        <View style={styles.cardFooter}>
+          <View>
+            <Text style={styles.totalLabel}>TOTAL</Text>
+            <Text style={styles.totalPrice}>
+              ₹{Number(item.total || 0).toFixed(2)}
+            </Text>
+          </View>
+
+          <View style={styles.viewDetailsRow}>
+            <Text style={styles.viewDetailsPrompt}>
+              {expanded ? 'Hide details' : 'View details'}
+            </Text>
+            <Animated.View style={{ transform: [{ rotate: chevronRotate }], marginLeft: 4 }}>
+              <Ionicons name="chevron-down" size={15} color={Theme.colors.primary} />
+            </Animated.View>
+          </View>
+        </View>
       </TouchableOpacity>
 
-      {/* Expandable dropdown */}
-      <ProductDropdown resolvedProducts={resolvedProducts} visible={expanded} />
+      {/* Expandable Product Dropdown */}
+      <ProductDropdown
+        resolvedProducts={resolvedProducts}
+        visible={expanded}
+        navigation={navigation}
+        uniqueid={uniqueid}
+      />
     </Animated.View>
   );
 });
 
-// ─── Empty State ─────────────────────────────────────────────────────────────
-const EmptyState = () => (
-  <View style={styles.emptyContainer}>
-    <Ionicons name="bag-outline" size={64} color="#d1d5db" />
-    <Text style={styles.emptyTitle}>No orders yet</Text>
-    <Text style={styles.emptySubtitle}>Your order history will appear here</Text>
-  </View>
-);
-
-// ─── Main Screen ─────────────────────────────────────────────────────────────
 export default function CONorders({ route, navigation }) {
-  const { uniqueid } = route.params;
+  const { uniqueid } = route.params || {};
 
-  const [orders,     setOrders]     = useState([]);
+  const [orders, setOrders] = useState([]);
   const [productMap, setProductMap] = useState(null);
-  const [loading,    setLoading]    = useState(true);
-  const [error,      setError]      = useState(null);
-
-  const headerAnim = useRef(new Animated.Value(0)).current;
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+  const [activeTab, setActiveTab] = useState('all');
 
   useEffect(() => {
     loadData();
-    Animated.timing(headerAnim, { toValue: 1, duration: 500, useNativeDriver: true }).start();
   }, []);
 
   const loadData = async () => {
@@ -285,197 +308,519 @@ export default function CONorders({ route, navigation }) {
       setLoading(true);
       setError(null);
       const [ordersRes, map] = await Promise.all([
-        fetch(`http://127.0.0.1:5000/get_orders/${uniqueid}`),
+        fetch(`http://192.168.29.173:5000/get_orders/${uniqueid}`),
         getProductCache(),
       ]);
       const result = await ordersRes.json();
-      if (result.status === 'success') setOrders(result.data);
+      if (result.status === 'success') setOrders(result.data || []);
       else setError(result.message);
       setProductMap(map);
     } catch {
-      setError('Failed to load orders. Please try again.');
+      setError('Unable to load orders. Check your network.');
     } finally {
       setLoading(false);
     }
   };
 
-  const handleToggleChange = useCallback((value) => {
-    if (value === 1) navigation.navigate('HomeCon', { uniqueid });
-    else navigation.navigate('CONorders', { uniqueid });
-  }, [navigation, uniqueid]);
+  const insets = useSafeAreaInsets();
 
-  if (loading) {
-    return (
-      <View style={styles.centered}>
-        <ActivityIndicator size="large" color="#0a47f0" />
-        <Text style={styles.loadingText}>Loading your orders…</Text>
-      </View>
-    );
-  }
-
-  if (error) {
-    return (
-      <View style={styles.centered}>
-        <Ionicons name="wifi-outline" size={48} color="#d1d5db" />
-        <Text style={styles.errorText}>{error}</Text>
-        <TouchableOpacity style={styles.retryBtn} onPress={loadData}>
-          <Text style={styles.retryText}>Try Again</Text>
-        </TouchableOpacity>
-      </View>
-    );
-  }
+  const filteredOrders = React.useMemo(() => {
+    if (activeTab === 'paid') return orders.filter(o => o.status === 'paid');
+    if (activeTab === 'pending') return orders.filter(o => o.status !== 'paid');
+    return orders;
+  }, [orders, activeTab]);
 
   return (
     <View style={styles.screen}>
+      <StatusBar barStyle="dark-content" backgroundColor="transparent" translucent />
 
-      <Animated.View style={[styles.header, { opacity: headerAnim }]}>
-        <View>
-          <Text style={styles.headerEyebrow}>YOUR HISTORY</Text>
+      {/* ── Ambient Header Aura ── */}
+      <AmbientAura variant="header" />
+
+      {/* Top iOS Header */}
+      <View style={[styles.topHeader, { paddingTop: insets.top + 8 }]}>
+        <TouchableOpacity
+          style={styles.backBtn}
+          onPress={() => navigation.goBack()}
+          activeOpacity={0.7}
+        >
+          <Ionicons name="chevron-back" size={24} color={Theme.colors.primary} />
+        </TouchableOpacity>
+
+        <View style={styles.headerTitleWrap}>
           <Text style={styles.headerTitle}>My Orders</Text>
         </View>
-        <View style={styles.orderCountBadge}>
-          <Text style={styles.orderCountText}>{orders.length}</Text>
-        </View>
-      </Animated.View>
 
-      <FlatList
-        data={orders}
-        keyExtractor={(item, i) => item.order_id?.toString() ?? i.toString()}
-        renderItem={({ item, index }) => (
-          <OrderCard item={item} index={index} productMap={productMap} />
-        )}
-        contentContainerStyle={[styles.listContent, orders.length === 0 && styles.listEmpty]}
-        ListEmptyComponent={<EmptyState />}
-        showsVerticalScrollIndicator={false}
-      />
-
-      <View style={styles.toggleBar}>
-        <CustomToggle onToggle={handleToggleChange} />
+        <View style={{ width: 38 }} />
       </View>
 
+      {/* iOS Segmented Control Tabs */}
+      <View style={styles.segmentedControlWrap}>
+        <View style={styles.segmentedControl}>
+          <TouchableOpacity
+            style={[styles.segmentBtn, activeTab === 'all' && styles.segmentBtnActive]}
+            onPress={() => setActiveTab('all')}
+            activeOpacity={0.8}
+          >
+            <Text style={[styles.segmentText, activeTab === 'all' && styles.segmentTextActive]}>
+              All ({orders.length})
+            </Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={[styles.segmentBtn, activeTab === 'paid' && styles.segmentBtnActive]}
+            onPress={() => setActiveTab('paid')}
+            activeOpacity={0.8}
+          >
+            <Text style={[styles.segmentText, activeTab === 'paid' && styles.segmentTextActive]}>
+              Delivered ({orders.filter(o => o.status === 'paid').length})
+            </Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={[styles.segmentBtn, activeTab === 'pending' && styles.segmentBtnActive]}
+            onPress={() => setActiveTab('pending')}
+            activeOpacity={0.8}
+          >
+            <Text style={[styles.segmentText, activeTab === 'pending' && styles.segmentTextActive]}>
+              Pending ({orders.filter(o => o.status !== 'paid').length})
+            </Text>
+          </TouchableOpacity>
+        </View>
+      </View>
+
+      {/* Orders List */}
+      {loading ? (
+        <View style={{ paddingHorizontal: 20, paddingTop: 10, gap: 10 }}>
+          <SkeletonCard />
+          <SkeletonCard />
+          <SkeletonCard />
+        </View>
+      ) : error ? (
+        <View style={styles.centered}>
+          <Ionicons name="cloud-offline-outline" size={44} color={Theme.colors.inkMuted48} />
+          <Text style={styles.errorText}>{error}</Text>
+          <TouchableOpacity style={styles.retryBtn} onPress={loadData}>
+            <Text style={styles.retryText}>Retry</Text>
+          </TouchableOpacity>
+        </View>
+      ) : (
+        <FlatList
+          data={filteredOrders}
+          keyExtractor={(item, i) => item.order_id?.toString() ?? i.toString()}
+          renderItem={({ item, index }) => (
+            <OrderCard
+              item={item}
+              index={index}
+              productMap={productMap}
+              navigation={navigation}
+              uniqueid={uniqueid}
+            />
+          )}
+          contentContainerStyle={[styles.listContent, { paddingBottom: insets.bottom + 90 }]}
+          showsVerticalScrollIndicator={false}
+          ListEmptyComponent={
+            <View style={styles.emptyContainer}>
+              <Ionicons name="receipt-outline" size={48} color={Theme.colors.inkMuted48} />
+              <Text style={styles.emptyTitle}>No Orders Yet</Text>
+              <Text style={styles.emptySubtitle}>
+                Your medicine orders will appear here once placed.
+              </Text>
+            </View>
+          }
+        />
+      )}
+
+      {/* Bottom Floating Dual Pill Dock */}
+      <View style={[styles.bottomNavContainer, { bottom: insets.bottom + 8 }]}>
+        <View style={styles.bottomNavDock}>
+          <TouchableOpacity
+            style={styles.bottomNavBtn}
+            onPress={() => navigation.navigate('HomeCon', { uniqueid })}
+            activeOpacity={0.8}
+          >
+            <Ionicons name="storefront-outline" size={16} color="rgba(255, 255, 255, 0.45)" />
+            <Text style={styles.bottomNavText}>Shop</Text>
+          </TouchableOpacity>
+
+          <View style={styles.bottomNavBtnActive}>
+            <Ionicons name="receipt-outline" size={16} color="#ffffff" />
+            <Text style={styles.bottomNavTextActive}>Orders</Text>
+          </View>
+        </View>
+      </View>
     </View>
   );
 }
 
-// ─── Styles ───────────────────────────────────────────────────────────────────
 const styles = StyleSheet.create({
-  screen:   { flex: 1, backgroundColor: '#f3f4f8' },
-  centered: { flex: 1, backgroundColor: '#f3f4f8', justifyContent: 'center', alignItems: 'center', gap: 12 },
-  loadingText: { fontSize: 14, color: '#9ca3af', fontWeight: '500' },
-
-  header: {
-    flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
-    paddingTop: Platform.OS === 'ios' ? 56 : 44, paddingBottom: 18, paddingHorizontal: 22,
-    backgroundColor: '#ffffff', borderBottomWidth: 1, borderBottomColor: '#e5e7eb',
+  screen: {
+    flex: 1,
+    backgroundColor: Theme.colors.canvasParchment,
   },
-  headerEyebrow: { fontSize: 10, fontWeight: '700', letterSpacing: 2, color: '#9ca3af', marginBottom: 2 },
-  headerTitle:   { fontSize: 26, fontWeight: '800', color: '#111827', letterSpacing: -0.5 },
-  orderCountBadge: { width: 42, height: 42, borderRadius: 21, backgroundColor: '#0a47f0', justifyContent: 'center', alignItems: 'center' },
-  orderCountText:  { fontSize: 16, fontWeight: '700', color: '#ffffff' },
-
-  listContent: { padding: 16, paddingBottom: 110 },
-  listEmpty:   { flex: 1, justifyContent: 'center' },
-
-  cardWrapper: { marginBottom: 14 },
+  topHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 16,
+    paddingTop: 8,
+    paddingBottom: 12,
+    backgroundColor: Theme.colors.canvas,
+    borderBottomWidth: 1,
+    borderBottomColor: Theme.colors.hairline,
+  },
+  backBtn: {
+    width: 38,
+    height: 38,
+    borderRadius: 19,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  headerTitleWrap: {
+    flex: 1,
+    alignItems: 'center',
+  },
+  headerTitle: {
+    fontSize: 17,
+    fontWeight: '400',
+    fontFamily: 'Inter_400Regular',
+    color: Theme.colors.ink,
+    letterSpacing: Theme.typography.tracking.normal,
+  },
+  segmentedControlWrap: {
+    paddingHorizontal: 20,
+    paddingVertical: 12,
+  },
+  segmentedControl: {
+    flexDirection: 'row',
+    backgroundColor: '#e5e5ea',
+    borderRadius: Theme.radius.lg,
+    padding: 3,
+  },
+  segmentBtn: {
+    flex: 1,
+    paddingVertical: 8,
+    alignItems: 'center',
+    borderRadius: Theme.radius.md,
+  },
+  segmentBtnActive: {
+    backgroundColor: Theme.colors.canvas,
+    ...Theme.shadows.card,
+  },
+  segmentText: {
+    fontSize: 13,
+    fontWeight: '400',
+    fontFamily: 'Inter_400Regular',
+    color: Theme.colors.ink,
+  },
+  segmentTextActive: {
+    fontWeight: '600',
+    fontFamily: 'Inter_400Regular',
+  },
+  listContent: {
+    paddingHorizontal: 20,
+    paddingTop: 4,
+    paddingBottom: 100,
+  },
+  cardWrapper: {
+    marginBottom: 12,
+  },
   card: {
-    backgroundColor: '#ffffff', borderRadius: 18, flexDirection: 'row', overflow: 'hidden',
-    ...Platform.select({
-      ios:     { shadowColor: '#000', shadowOffset: { width: 0, height: 3 }, shadowOpacity: 0.07, shadowRadius: 10 },
-      android: { elevation: 3 },
-    }),
+    backgroundColor: Theme.colors.canvas,
+    borderRadius: Theme.radius.xl, // 26px squircle
+    padding: 16,
+    borderWidth: 1.5,
+    borderColor: 'rgba(255, 255, 255, 0.9)',
+    ...Theme.shadows.skeuoCard,
   },
-
-  cardLeft: { width: 112, backgroundColor: '#f8f9ff', padding: 14, borderRightWidth: 1, borderRightColor: '#e5e7eb' },
-  boxIcon:  { width: 36, height: 36, borderRadius: 10, backgroundColor: '#eff3ff', justifyContent: 'center', alignItems: 'center', marginBottom: 10 },
-  deliveryLabel: { fontSize: 12, fontWeight: '700', color: '#111827', lineHeight: 16, marginBottom: 4 },
-  dateText:      { fontSize: 10, color: '#9ca3af', fontWeight: '500', marginBottom: 6 },
-  customerName:  { fontSize: 11, color: '#6b7280', fontWeight: '600', marginBottom: 6 },
-  itemCountBadge:{ backgroundColor: '#eff3ff', alignSelf: 'flex-start', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 8 },
-  itemCountText: { fontSize: 10, color: '#0a47f0', fontWeight: '600' },
-
-  cardRight: { flex: 1, padding: 14 },
-  priceRow:  { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 },
-  priceRowRight: { flexDirection: 'row', alignItems: 'center' },
-  priceText: { fontSize: 18, fontWeight: '800', color: '#111827', letterSpacing: -0.3 },
-
-  statusChip:  { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 8, paddingVertical: 3, borderRadius: 20, gap: 3 },
-  paidChip:    { backgroundColor: '#dcfce7' },
-  unpaidChip:  { backgroundColor: '#fef3c7' },
-  statusText:  { fontSize: 11, fontWeight: '700' },
-
-  thumbStrip: { flexDirection: 'row', alignItems: 'center', marginBottom: 10, gap: 4 },
+  cardHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  orderIdRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  parcelIconWrap: {
+    width: 40,
+    height: 40,
+    borderRadius: Theme.radius.md,
+    backgroundColor: '#e8f0fb',
+    justifyContent: 'center',
+    alignItems: 'center',
+    ...Theme.shadows.skeuoCircle,
+  },
+  deliveryStatusText: {
+    fontSize: 15,
+    fontWeight: '400',
+    fontFamily: 'Inter_400Regular',
+    color: Theme.colors.ink,
+  },
+  orderNumberText: {
+    fontSize: 12,
+    fontFamily: 'Inter_400Regular',
+    color: 'rgba(100, 116, 139, 0.78)',
+    marginTop: 2,
+  },
+  headerRightStatus: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  statusChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: Theme.radius.pill,
+  },
+  paidChip: {
+    backgroundColor: '#e6f7ec',
+  },
+  pendingChip: {
+    backgroundColor: Theme.colors.canvasParchment,
+  },
+  statusText: {
+    fontSize: 12,
+    fontWeight: '600',
+    fontFamily: 'Inter_400Regular',
+  },
+  thumbStrip: {
+    flexDirection: 'row',
+    gap: 8,
+    marginTop: 14,
+  },
   thumbBox: {
-    width: 46, height: 46, borderRadius: 10, backgroundColor: '#f9fafb',
-    borderWidth: 1, borderColor: '#e5e7eb', justifyContent: 'center', alignItems: 'center', position: 'relative',
+    width: 48,
+    height: 48,
+    borderRadius: Theme.radius.md,
+    backgroundColor: Theme.colors.canvasParchment,
+    justifyContent: 'center',
+    alignItems: 'center',
+    position: 'relative',
   },
-  thumbImg: { width: 38, height: 38 },
+  thumbImg: {
+    width: '80%',
+    height: '80%',
+  },
   thumbQty: {
-    position: 'absolute', top: -5, right: -5, width: 16, height: 16, borderRadius: 8,
-    backgroundColor: '#111827', justifyContent: 'center', alignItems: 'center', zIndex: 2,
+    position: 'absolute',
+    top: -4,
+    right: -4,
+    backgroundColor: Theme.colors.ink,
+    borderRadius: 8,
+    width: 16,
+    height: 16,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
-  thumbQtyText: { fontSize: 8, fontWeight: '800', color: '#fff' },
-  extraBox:  { backgroundColor: '#eff3ff', borderColor: '#c7d2fe' },
-  extraText: { fontSize: 11, fontWeight: '700', color: '#0a47f0' },
-
-  orderIdRow:  { flexDirection: 'row', alignItems: 'center', gap: 4, marginBottom: 10 },
-  orderIdText: { fontSize: 12, color: '#9ca3af', fontWeight: '500' },
-
-  rateBtn: {
-    flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
-    gap: 4, paddingVertical: 7, borderRadius: 20,
-    backgroundColor: '#fffbeb', borderWidth: 1, borderColor: '#fde68a',
+  thumbQtyText: {
+    color: Theme.colors.canvas,
+    fontSize: 10,
+    fontWeight: '600',
+    fontFamily: 'Inter_400Regular',
   },
-  rateText: { fontSize: 12, fontWeight: '700', color: '#d97706' },
-
-  // Dropdown
+  extraBox: {
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  extraText: {
+    fontSize: 12,
+    fontWeight: '400',
+    fontFamily: 'Inter_400Regular',
+    color: 'rgba(100, 116, 139, 0.78)',
+  },
+  cardFooter: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    borderTopWidth: 1,
+    borderTopColor: Theme.colors.hairline,
+    paddingTop: 12,
+    marginTop: 14,
+  },
+  totalLabel: {
+    fontSize: 11,
+    fontWeight: '400',
+    fontFamily: 'Inter_400Regular',
+    color: 'rgba(100, 116, 139, 0.78)',
+    letterSpacing: Theme.typography.tracking.caps,
+  },
+  totalPrice: {
+    fontSize: 17,
+    fontWeight: '400',
+    fontFamily: 'Inter_400Regular',
+    color: Theme.colors.ink,
+    marginTop: 2,
+  },
+  viewDetailsRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  viewDetailsPrompt: {
+    fontSize: 13,
+    fontWeight: '600',
+    fontFamily: 'Inter_400Regular',
+    color: Theme.colors.primary,
+  },
   dropdown: {
-    overflow: 'hidden', backgroundColor: '#ffffff',
-    borderBottomLeftRadius: 18, borderBottomRightRadius: 18,
-    borderTopWidth: 1, borderTopColor: '#f0f4ff',
-    ...Platform.select({
-      ios:     { shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.06, shadowRadius: 8 },
-      android: { elevation: 2 },
-    }),
+    backgroundColor: Theme.colors.canvas,
+    borderRadius: Theme.radius.lg,
+    borderWidth: 1,
+    borderColor: Theme.colors.hairline,
+    marginTop: 6,
+    overflow: 'hidden',
   },
-  dropdownInner:    { padding: 14 },
-  dropdownTitle:    { fontSize: 11, fontWeight: '700', letterSpacing: 1.5, color: '#9ca3af', marginBottom: 10, textTransform: 'uppercase' },
-  dropdownRow:      { flexDirection: 'row', alignItems: 'center', paddingVertical: 8 },
-  dropdownRowBorder:{ borderBottomWidth: 1, borderBottomColor: '#f3f4f6' },
-  dropdownImg:      { width: 44, height: 44, borderRadius: 8, backgroundColor: '#f9fafb', borderWidth: 1, borderColor: '#e5e7eb', marginRight: 10 },
-  dropdownInfo:     { flex: 1 },
-  dropdownName:     { fontSize: 13, fontWeight: '600', color: '#111827', marginBottom: 2 },
-  dropdownCategory: { fontSize: 11, color: '#9ca3af', fontWeight: '500' },
-  dropdownRight:    { alignItems: 'flex-end', gap: 4 },
-  dropdownPrice:    { fontSize: 13, fontWeight: '700', color: '#0a47f0' },
-  dropdownQtyBadge: { backgroundColor: '#f3f4f6', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 6 },
-  dropdownQtyText:  { fontSize: 11, fontWeight: '600', color: '#374151' },
-
-  errorText: { fontSize: 15, color: '#6b7280', textAlign: 'center', paddingHorizontal: 30, fontWeight: '500' },
-  retryBtn:  { backgroundColor: '#0a47f0', paddingVertical: 11, paddingHorizontal: 28, borderRadius: 22, marginTop: 4 },
-  retryText: { color: '#fff', fontSize: 15, fontWeight: '700' },
-  emptyContainer: { alignItems: 'center', paddingVertical: 60, gap: 10 },
-  emptyTitle:     { fontSize: 20, fontWeight: '700', color: '#374151' },
-  emptySubtitle:  { fontSize: 14, color: '#9ca3af', fontWeight: '500' },
-
-  toggleBar:       { position: 'absolute', bottom: 10, left: 0, right: 0, alignItems: 'center', paddingBottom: 10 },
-  toggleContainer: { alignItems: 'center', justifyContent: 'center' },
-  toggleWrapper: {
-    flexDirection: 'row', backgroundColor: '#ffffff', borderRadius: 28,
-    position: 'relative', width: 220, height: 48, padding: 3,
-    ...Platform.select({
-      ios:     { shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.12, shadowRadius: 12 },
-      android: { elevation: 6 },
-    }),
+  dropdownInner: {
+    padding: 14,
   },
-  highlightBg: {
-    position: 'absolute', width: '48%', height: '87%', backgroundColor: '#000000',
-    borderRadius: 24, top: 0, left: 2, bottom: 0, margin: 3, zIndex: 1,
-    ...Platform.select({
-      ios:     { shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.15, shadowRadius: 4 },
-      android: { elevation: 3 },
-    }),
+  dropdownTitle: {
+    fontSize: 11,
+    fontWeight: '400',
+    fontFamily: 'Inter_400Regular',
+    color: 'rgba(100, 116, 139, 0.78)',
+    letterSpacing: Theme.typography.tracking.caps,
+    marginBottom: 8,
   },
-  toggleOption: { flex: 1, alignItems: 'center', justifyContent: 'center', zIndex: 2, height: 42 },
-  toggleText:   { fontSize: 15, fontWeight: '600', color: '#6b7280', letterSpacing: 0.3 },
-  selectedText: { color: '#ffffff', fontWeight: '700' },
+  dropdownRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 8,
+  },
+  dropdownRowBorder: {
+    borderBottomWidth: 1,
+    borderBottomColor: Theme.colors.hairline,
+  },
+  dropdownImg: {
+    width: 36,
+    height: 36,
+    borderRadius: 8,
+    backgroundColor: Theme.colors.canvasParchment,
+    marginRight: 10,
+  },
+  dropdownInfo: {
+    flex: 1,
+  },
+  dropdownName: {
+    fontSize: 13,
+    fontWeight: '400',
+    fontFamily: 'Inter_400Regular',
+    color: Theme.colors.ink,
+  },
+  dropdownCategory: {
+    fontSize: 11,
+    fontFamily: 'Inter_400Regular',
+    color: 'rgba(100, 116, 139, 0.78)',
+    marginTop: 1,
+  },
+  dropdownRight: {
+    alignItems: 'flex-end',
+  },
+  dropdownPrice: {
+    fontSize: 13,
+    fontWeight: '400',
+    fontFamily: 'Inter_400Regular',
+    color: Theme.colors.ink,
+  },
+  dropdownQtyText: {
+    fontSize: 11,
+    fontFamily: 'Inter_400Regular',
+    color: 'rgba(100, 116, 139, 0.78)',
+    marginTop: 1,
+  },
+  centered: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 24,
+    gap: 8,
+  },
+  errorText: {
+    fontSize: 14,
+    color: Theme.colors.inkMuted48,
+    textAlign: 'center',
+  },
+  retryBtn: {
+    marginTop: 12,
+    backgroundColor: Theme.colors.primary,
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: Theme.radius.pill,
+  },
+  retryText: {
+    color: Theme.colors.canvas,
+    fontSize: 13,
+    fontWeight: '600',
+  },
+  emptyContainer: {
+    alignItems: 'center',
+    paddingVertical: 80,
+    gap: 8,
+  },
+  emptyTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: Theme.colors.ink,
+  },
+  emptySubtitle: {
+    fontSize: 13,
+    color: Theme.colors.inkMuted48,
+    textAlign: 'center',
+    paddingHorizontal: 24,
+  },
+  bottomNavContainer: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    alignItems: 'center',
+    zIndex: 50,
+  },
+  bottomNavDock: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#111214',
+    borderRadius: Theme.radius.pill,
+    padding: 4,
+    borderWidth: 1.5,
+    borderColor: 'rgba(255, 255, 255, 0.12)',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 12 },
+    shadowOpacity: 0.35,
+    shadowRadius: 20,
+    elevation: 12,
+  },
+  bottomNavBtn: {
+    width: 90,
+    height: 40,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+  },
+  bottomNavBtnActive: {
+    width: 90,
+    height: 40,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    backgroundColor: '#23252a',
+    borderRadius: Theme.radius.pill,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.14)',
+  },
+  bottomNavText: {
+    fontFamily: 'Inter_400Regular',
+    fontSize: 13,
+    fontWeight: '400',
+    color: 'rgba(255, 255, 255, 0.45)',
+  },
+  bottomNavTextActive: {
+    fontFamily: 'Inter_400Regular',
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#ffffff',
+  },
 });
