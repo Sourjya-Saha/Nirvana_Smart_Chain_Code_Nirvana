@@ -22,7 +22,7 @@ Unlike legacy track-and-trace providers that only monitor internal manufacturing
 
 ## Visual Telemetry & Platform Showcase
 
-### 2. Enterprise Web Portals (Manufacturer, Wholesaler & Pharmacy)
+### 1. Enterprise Web Portals (Manufacturer, Wholesaler & Pharmacy)
 
 | Multi-Role Enterprise Gateway | Pharmacy Telemetry & Financial Dashboard |
 |:---:|:---:|
