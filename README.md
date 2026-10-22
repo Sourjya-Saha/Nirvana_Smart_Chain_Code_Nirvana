@@ -1,4 +1,4 @@
-# Nirvana Health-Chain (NSC)
+# Nirvana Health-Chain (NHC)
 ### Verified Medicines, Factory to Patient — Supply Chain Tracking & Local Pharmacy Delivery
 
 [![YUKTI 2025 Finalist](https://img.shields.io/badge/YUKTI%20Innovation%20Challenge%202025-Finalist%20%28IR2024--924421%29-blue?style=flat-square)](https://mic.gov.in)
