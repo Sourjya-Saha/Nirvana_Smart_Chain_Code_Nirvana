@@ -1,4 +1,4 @@
-# Nirvana Smart-Chain (NSC)
+# Nirvana Health-Chain (NSC)
 ### Verified Medicines, Factory to Patient — Supply Chain Tracking & Local Pharmacy Delivery
 
 [![YUKTI 2025 Finalist](https://img.shields.io/badge/YUKTI%20Innovation%20Challenge%202025-Finalist%20%28IR2024--924421%29-blue?style=flat-square)](https://mic.gov.in)
@@ -9,9 +9,9 @@
 
 ---
 
-## What is Nirvana Smart-Chain?
+## What is Nirvana Health-Chain?
 
-**Nirvana Smart-Chain** is an all-in-one medicine tracking and delivery platform. Today, factory tracking, pharmacy inventory software, and patient home delivery apps are completely separate systems that do not talk to each other. Nirvana connects all of them into one continuous digital record.
+**Nirvana Health-Chain** is an all-in-one medicine tracking and delivery platform. Today, factory tracking, pharmacy inventory software, and patient home delivery apps are completely separate systems that do not talk to each other. Nirvana connects all of them into one continuous digital record.
 
 Instead of replacing neighborhood medical stores with corporate dark stores, Nirvana turns **licensed local pharmacies into rapid delivery hubs**—working like a "Blinkit for neighborhood chemists" while giving patients proof that their medicine is 100% genuine and safe.
 
@@ -233,13 +233,13 @@ npx expo start
 **Team Code Nirvana**  
 *Department of Information Technology, Heritage Institute of Technology, Kolkata*
 
-* **Srinjoy Roy** — *Team Lead & Architect*  
-  Backend database design, optimization, and AI model integration (Prescription OCR and demand sensing).
-* **Sourjya Saha** — *Full-Stack & Blockchain Developer*  
-  Web and mobile application development, frontend-backend integration, and Polygon smart contracts.
-* **Aritra Dhar** — *Full-Stack & Mobile Developer*  
-  Web application interface design, cross-platform mobile client integration, and contract testing.
-* **Prof. Rituparna Sinha** — *Faculty Advisor & Mentor*
+* **Srinjoy Roy** — *Team Lead & Systems Architect*  
+  Backend architecture, database design, and AI integration, including OCR-based data extraction and demand-sensing model development
+* **Sourjya Saha** — *Full-Stack Web/Mobile Application & Blockchain Developer*  
+  End to end web/mobile application development, frontend–backend integration, and blockchain
+* **Aritra Dhar** — *Web/Mobile Application Developer & Blockchain Developer*  
+  End to end web/mobile application development and blockchain implementation.
+* **Prof. Rituparna Sinha** — *Project Mentor & Institutional Advisor*
 
 **Incubation Center:**  
 *Heritage Institute of Technology Pre-Incubation Centre (Heritage Incubation Cell), Anandapur, Kolkata.*
